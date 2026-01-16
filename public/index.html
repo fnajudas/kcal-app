@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kcal Calculator - Hitung Kebutuhan Kalori Harianmu</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>Kcal Calculator</h1>
+            <p class="subtitle">Hitung BMI & Kebutuhan Kalori Harianmu</p>
+        </header>
+
+        <!-- Profile Section -->
+        <section id="profile-section" class="card">
+            <div class="card-header">
+                <h2>Profil Kamu</h2>
+                <button id="edit-profile-btn" class="btn-icon" title="Edit Profil" style="display: none;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Profile Form -->
+            <form id="profile-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="gender">Jenis Kelamin</label>
+                        <select id="gender" required>
+                            <option value="">Pilih...</option>
+                            <option value="male">Pria</option>
+                            <option value="female">Wanita</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="age">Umur (tahun)</label>
+                        <input type="number" id="age" min="10" max="120" placeholder="25" required>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="height">Tinggi Badan (cm)</label>
+                        <input type="number" id="height" min="100" max="250" placeholder="170" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="weight">Berat Badan (kg)</label>
+                        <input type="number" id="weight" min="30" max="300" step="0.1" placeholder="65" required>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="activity">Level Aktivitas</label>
+                    <select id="activity" required>
+                        <option value="">Pilih level aktivitas...</option>
+                        <option value="1.2">Sedentary - Tidak aktif / kerja kantoran</option>
+                        <option value="1.375">Light - Olahraga ringan 1-3x/minggu</option>
+                        <option value="1.55">Moderate - Olahraga 3-5x/minggu</option>
+                        <option value="1.725">Active - Olahraga 6-7x/minggu</option>
+                        <option value="1.9">Very Active - Olahraga berat / atlet</option>
+                    </select>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Hitung Kebutuhan Kalori</button>
+            </form>
+
+            <!-- Profile Display (shown after form submitted) -->
+            <div id="profile-display" class="profile-display" style="display: none;">
+                <div class="profile-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Jenis Kelamin</span>
+                        <span class="stat-value" id="display-gender">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Umur</span>
+                        <span class="stat-value" id="display-age">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Tinggi</span>
+                        <span class="stat-value" id="display-height">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Berat</span>
+                        <span class="stat-value" id="display-weight">-</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Section (hidden until profile is set) -->
+        <section id="results-section" class="card" style="display: none;">
+            <h2>Hasil Perhitungan</h2>
+            
+            <div class="results-grid">
+                <!-- BMI Card -->
+                <div class="result-card">
+                    <div class="result-icon bmi-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2z"></path>
+                            <path d="M12 6v6l4 2"></path>
+                        </svg>
+                    </div>
+                    <div class="result-info">
+                        <span class="result-label">BMI Kamu</span>
+                        <span class="result-value" id="bmi-value">-</span>
+                        <span class="result-category" id="bmi-category">-</span>
+                    </div>
+                </div>
+                
+                <!-- Daily Calorie Card -->
+                <div class="result-card">
+                    <div class="result-icon calorie-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2c.5 4-2 6-2 10a4 4 0 1 0 8 0c0-4-2.5-6-2-10"></path>
+                            <path d="M12 22v-4"></path>
+                        </svg>
+                    </div>
+                    <div class="result-info">
+                        <span class="result-label">TDEE (Maintenance)</span>
+                        <span class="result-value" id="tdee-value">-</span>
+                        <span class="result-category">kcal/hari</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ideal Weight Card -->
+            <div class="ideal-weight-card" id="ideal-weight-card">
+                <div class="ideal-weight-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 3v18"></path>
+                        <path d="M5 8l7-5 7 5"></path>
+                        <path d="M5 16l7 5 7-5"></path>
+                    </svg>
+                </div>
+                <div class="ideal-weight-content">
+                    <span class="ideal-weight-label">Berat Badan Ideal untuk Tinggi <span id="ideal-height">-</span> cm</span>
+                    <span class="ideal-weight-value"><span id="ideal-weight-min">-</span> - <span id="ideal-weight-max">-</span> kg</span>
+                    <span class="ideal-weight-diff" id="weight-diff-message"></span>
+                </div>
+            </div>
+
+            <!-- BMI Scale -->
+            <div class="bmi-scale">
+                <div class="scale-bar">
+                    <div class="scale-segment underweight">Underweight</div>
+                    <div class="scale-segment normal">Normal</div>
+                    <div class="scale-segment overweight">Overweight</div>
+                    <div class="scale-segment obese">Obese</div>
+                </div>
+                <div class="scale-indicator" id="bmi-indicator"></div>
+            </div>
+        </section>
+
+        <!-- Goal Setting Section -->
+        <section id="goal-section" class="card" style="display: none;">
+            <h2>Target & Goal</h2>
+            
+            <form id="goal-form">
+                <div class="form-group">
+                    <label for="goal-type">Tujuan Kamu</label>
+                    <select id="goal-type" required>
+                        <option value="maintenance">Jaga Berat Badan (Maintenance)</option>
+                        <option value="mild-deficit">Turun Perlahan (-0.25 kg/minggu)</option>
+                        <option value="deficit">Turun Berat (-0.5 kg/minggu)</option>
+                        <option value="aggressive-deficit">Turun Cepat (-0.75 kg/minggu)</option>
+                        <option value="mild-surplus">Naik Perlahan (+0.25 kg/minggu)</option>
+                        <option value="surplus">Naik Berat (+0.5 kg/minggu)</option>
+                    </select>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="target-weight">Target Berat Badan (kg)</label>
+                        <input type="number" id="target-weight" min="30" max="200" step="0.1" placeholder="60">
+                    </div>
+                    <div class="form-group">
+                        <label for="custom-calories">Kalori Custom (opsional)</label>
+                        <input type="number" id="custom-calories" min="1000" max="5000" placeholder="Auto">
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Simpan Goal</button>
+            </form>
+
+            <!-- Goal Display -->
+            <div id="goal-display" class="goal-display" style="display: none;">
+                <div class="goal-info-card">
+                    <div class="goal-target">
+                        <span class="goal-label">Target Kalori Harian</span>
+                        <span class="goal-value" id="display-target-calories">-</span>
+                        <span class="goal-unit">kcal</span>
+                    </div>
+                    <div class="goal-details">
+                        <div class="goal-detail-item">
+                            <span>Target Berat:</span>
+                            <strong id="display-target-weight">-</strong>
+                        </div>
+                        <div class="goal-detail-item">
+                            <span>Estimasi Waktu:</span>
+                            <strong id="display-goal-time">-</strong>
+                        </div>
+                        <div class="goal-detail-item">
+                            <span>Target Tercapai:</span>
+                            <strong id="display-goal-date">-</strong>
+                        </div>
+                    </div>
+                </div>
+                <button id="edit-goal-btn" class="btn btn-secondary btn-small">Edit Goal</button>
+            </div>
+        </section>
+
+        <!-- Dashboard Section (hidden until profile is set) -->
+        <section id="dashboard-section" class="card" style="display: none;">
+            <div class="card-header">
+                <h2>Dashboard Hari Ini</h2>
+                <span class="date-display" id="current-date">-</span>
+            </div>
+            
+            <div class="dashboard-grid">
+                <!-- Calorie Progress -->
+                <div class="dashboard-item calorie-progress">
+                    <h3>Kalori</h3>
+                    <div class="progress-circle">
+                        <svg class="progress-ring" width="150" height="150">
+                            <circle class="progress-ring-bg" cx="75" cy="75" r="65"/>
+                            <circle class="progress-ring-fill" cx="75" cy="75" r="65" id="progress-ring"/>
+                        </svg>
+                        <div class="progress-text">
+                            <span class="consumed-value" id="consumed-calories">0</span>
+                            <span class="consumed-label">dari <span id="target-calories">0</span></span>
+                        </div>
+                    </div>
+                    <div class="progress-stats">
+                        <div class="stat-box">
+                            <span class="stat-number remaining" id="remaining-calories">0</span>
+                            <span class="stat-desc">Sisa</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-number percentage" id="percentage-consumed">0%</span>
+                            <span class="stat-desc">Tercapai</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Water Progress -->
+                <div class="dashboard-item water-progress">
+                    <h3>Air Minum</h3>
+                    <div class="water-display">
+                        <div class="water-icon">💧</div>
+                        <div class="water-count">
+                            <span id="water-current">0</span>
+                            <span class="water-divider">/</span>
+                            <span id="water-target">8</span>
+                            <span class="water-unit">gelas</span>
+                        </div>
+                        <div class="water-ml">(<span id="water-ml">0</span> ml)</div>
+                    </div>
+                    <div class="water-buttons">
+                        <button id="water-minus" class="btn-circle btn-minus">-</button>
+                        <button id="water-plus" class="btn-circle btn-plus">+</button>
+                    </div>
+                    <div class="water-bar">
+                        <div class="water-bar-fill" id="water-bar-fill"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Message -->
+            <div class="status-message" id="status-message">
+                <span class="status-icon">💪</span>
+                <span class="status-text">Mulai catat makananmu!</span>
+            </div>
+        </section>
+
+        <!-- Food Tracker Section -->
+        <section id="food-section" class="card" style="display: none;">
+            <div class="card-header">
+                <h2>Catat Makanan</h2>
+                <button id="show-templates-btn" class="btn btn-secondary btn-small">Template</button>
+            </div>
+            
+            <!-- Meal Templates (hidden by default) -->
+            <div id="templates-panel" class="templates-panel" style="display: none;">
+                <div class="templates-header">
+                    <h3>Meal Templates</h3>
+                    <button id="save-as-template-btn" class="btn btn-success btn-small">Simpan Hari Ini sebagai Template</button>
+                </div>
+                <div id="templates-list" class="templates-list">
+                    <p class="empty-message">Belum ada template tersimpan.</p>
+                </div>
+            </div>
+            
+            <!-- Food Input Form -->
+            <form id="food-form" class="food-form">
+                <div class="form-row">
+                    <div class="form-group flex-2">
+                        <label for="food-name">Nama Makanan</label>
+                        <div class="autocomplete-wrapper">
+                            <input type="text" id="food-name" placeholder="Ketik nama makanan..." autocomplete="off" required>
+                            <ul id="food-suggestions" class="autocomplete-list"></ul>
+                        </div>
+                        <small class="input-hint" id="food-hint"></small>
+                    </div>
+                    <div class="form-group flex-1">
+                        <label for="food-calories">Kalori (kcal)</label>
+                        <input type="number" id="food-calories" min="1" max="5000" placeholder="350" required>
+                        <small class="input-hint calorie-hint" id="calorie-hint">Bisa diedit</small>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-success">+ Tambah Makanan</button>
+            </form>
+
+            <!-- Food List -->
+            <div class="food-list-container">
+                <h3>Makanan Hari Ini</h3>
+                <ul id="food-list" class="food-list">
+                </ul>
+                <p id="empty-food-message" class="empty-message">Belum ada makanan yang dicatat.</p>
+            </div>
+
+            <button id="clear-foods-btn" class="btn btn-danger" style="display: none;">
+                Hapus Semua Makanan
+            </button>
+        </section>
+
+        <!-- Weight Progress Section -->
+        <section id="weight-section" class="card" style="display: none;">
+            <h2>Progress Berat Badan</h2>
+            
+            <!-- Weight Input -->
+            <div class="weight-input-row">
+                <div class="form-group">
+                    <label for="weight-input">Berat Hari Ini (kg)</label>
+                    <input type="number" id="weight-input" min="30" max="300" step="0.1" placeholder="65.5">
+                </div>
+                <button id="add-weight-btn" class="btn btn-primary">Catat</button>
+            </div>
+
+            <!-- Weight Stats -->
+            <div class="weight-stats" id="weight-stats" style="display: none;">
+                <div class="weight-stat-item">
+                    <span class="weight-stat-label">Berat Awal</span>
+                    <span class="weight-stat-value" id="start-weight">-</span>
+                </div>
+                <div class="weight-stat-item">
+                    <span class="weight-stat-label">Berat Sekarang</span>
+                    <span class="weight-stat-value" id="current-weight-display">-</span>
+                </div>
+                <div class="weight-stat-item highlight">
+                    <span class="weight-stat-label">Perubahan</span>
+                    <span class="weight-stat-value" id="weight-change">-</span>
+                </div>
+            </div>
+
+            <!-- Weight Chart (Simple Bar) -->
+            <div class="weight-chart" id="weight-chart">
+                <h3>Riwayat (7 Hari Terakhir)</h3>
+                <div class="chart-container" id="weight-chart-container">
+                    <p class="empty-message">Belum ada data berat badan.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Body Measurements Section -->
+        <section id="measurements-section" class="card" style="display: none;">
+            <div class="card-header">
+                <h2>Ukuran Tubuh</h2>
+                <button id="toggle-measurement-form" class="btn-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Measurement Form -->
+            <form id="measurement-form" style="display: none;">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="waist">Pinggang (cm)</label>
+                        <input type="number" id="waist" min="40" max="200" step="0.1" placeholder="80">
+                    </div>
+                    <div class="form-group">
+                        <label for="chest">Dada (cm)</label>
+                        <input type="number" id="chest" min="50" max="200" step="0.1" placeholder="95">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="arm">Lengan (cm)</label>
+                        <input type="number" id="arm" min="15" max="60" step="0.1" placeholder="30">
+                    </div>
+                    <div class="form-group">
+                        <label for="thigh">Paha (cm)</label>
+                        <input type="number" id="thigh" min="30" max="100" step="0.1" placeholder="55">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="hip">Pinggul (cm)</label>
+                        <input type="number" id="hip" min="50" max="200" step="0.1" placeholder="95">
+                    </div>
+                    <div class="form-group">
+                        <label for="neck">Leher (cm)</label>
+                        <input type="number" id="neck" min="20" max="60" step="0.1" placeholder="38">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Simpan Ukuran</button>
+            </form>
+
+            <!-- Measurement Display -->
+            <div id="measurement-display" class="measurement-display">
+                <p class="empty-message">Belum ada data ukuran tubuh.</p>
+            </div>
+
+            <!-- Measurement History -->
+            <div id="measurement-history" class="measurement-history" style="display: none;">
+                <h3>Riwayat Pengukuran</h3>
+                <div id="measurement-history-list"></div>
+            </div>
+        </section>
+
+        <!-- History Section -->
+        <section id="history-section" class="card" style="display: none;">
+            <h2>Riwayat Kalori</h2>
+            
+            <!-- Calorie History Chart -->
+            <div class="history-chart" id="calorie-history-chart">
+                <div class="chart-bars" id="calorie-chart-bars">
+                    <!-- Generated by JS -->
+                </div>
+            </div>
+
+            <!-- History List -->
+            <div class="history-list" id="history-list">
+                <!-- Generated by JS -->
+            </div>
+        </section>
+
+        <!-- API Settings Section -->
+        <section id="settings-section" class="card settings-card">
+            <div class="settings-header" id="settings-toggle">
+                <h2>Pengaturan</h2>
+                <span class="settings-arrow">▼</span>
+            </div>
+            <div class="settings-content" id="settings-content" style="display: none;">
+                <h3>CalorieNinjas API</h3>
+                <p class="settings-info">
+                    Untuk mencari kalori makanan dari database internasional, masukkan API key dari 
+                    <a href="https://calorieninjas.com/api" target="_blank">CalorieNinjas</a> (gratis).
+                </p>
+                <div class="form-group">
+                    <label for="api-key">API Key (opsional)</label>
+                    <input type="password" id="api-key" placeholder="Masukkan API key...">
+                </div>
+                <div class="settings-actions">
+                    <button id="save-api-key" class="btn btn-primary btn-small">Simpan</button>
+                    <button id="clear-api-key" class="btn btn-danger btn-small">Hapus</button>
+                </div>
+                <p class="api-status" id="api-status"></p>
+
+                <hr class="settings-divider">
+
+                <h3>Reset Data</h3>
+                <p class="settings-info">Hapus semua data aplikasi (profil, makanan, berat badan, dll).</p>
+                <button id="reset-all-btn" class="btn btn-danger btn-small">Reset Semua Data</button>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Kcal Calculator &copy; 2024 | Jaga kesehatanmu!</p>
+        </footer>
+    </div>
+
+    <!-- Template Modal -->
+    <div id="template-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Simpan sebagai Template</h3>
+                <button class="modal-close" id="close-template-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="template-name">Nama Template</label>
+                    <input type="text" id="template-name" placeholder="Contoh: Sarapan Sehat">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="confirm-save-template" class="btn btn-primary">Simpan</button>
+                <button id="cancel-save-template" class="btn btn-secondary">Batal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/foods-db.js"></script>
+    <script src="js/calorie-api.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/calculator.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
