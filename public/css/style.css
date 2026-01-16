@@ -682,6 +682,23 @@ input::placeholder {
     font-size: 0.875rem;
 }
 
+.footer-credit {
+    margin-top: var(--space-xs);
+    font-size: 0.8rem;
+}
+
+.footer-credit a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 600;
+    transition: color var(--transition);
+}
+
+.footer-credit a:hover {
+    color: var(--primary-dark);
+    text-decoration: underline;
+}
+
 /* Responsive Design */
 @media (max-width: 480px) {
     .container {
