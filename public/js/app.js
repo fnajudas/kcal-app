@@ -178,6 +178,17 @@ const App = {
             confirmPriceEdit: document.getElementById('confirm-price-edit'),
             resetPriceEdit: document.getElementById('reset-price-edit'),
 
+            // Toast
+            toastContainer: document.getElementById('toast-container'),
+
+            // Confirm Modal
+            confirmModal: document.getElementById('confirm-modal'),
+            confirmIcon: document.getElementById('confirm-icon'),
+            confirmTitle: document.getElementById('confirm-title'),
+            confirmMessage: document.getElementById('confirm-message'),
+            confirmCancel: document.getElementById('confirm-cancel'),
+            confirmOk: document.getElementById('confirm-ok'),
+
             // Settings
             settingsToggle: document.getElementById('settings-toggle'),
             settingsContent: document.getElementById('settings-content'),
@@ -270,8 +281,16 @@ const App = {
             this.showApiStatus('API key dihapus', 'success');
         });
 
-        this.elements.resetAllBtn?.addEventListener('click', () => {
-            if (confirm('Hapus semua data? Tindakan ini tidak dapat dibatalkan.')) {
+        this.elements.resetAllBtn?.addEventListener('click', async () => {
+            const confirmed = await this.showConfirm({
+                title: 'Reset Semua Data?',
+                message: 'Semua data profil, makanan, template, dan riwayat akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.',
+                confirmText: 'Reset Semua',
+                cancelText: 'Batal',
+                type: 'danger'
+            });
+
+            if (confirmed) {
                 Storage.clearAll();
                 location.reload();
             }
@@ -526,11 +545,11 @@ const App = {
     },
 
     validateProfile(profile) {
-        if (!profile.gender) { alert('Pilih jenis kelamin'); return false; }
-        if (!profile.age || profile.age < 10 || profile.age > 120) { alert('Umur: 10-120 tahun'); return false; }
-        if (!profile.height || profile.height < 100 || profile.height > 250) { alert('Tinggi: 100-250 cm'); return false; }
-        if (!profile.weight || profile.weight < 30 || profile.weight > 300) { alert('Berat: 30-300 kg'); return false; }
-        if (!profile.activity) { alert('Pilih level aktivitas'); return false; }
+        if (!profile.gender) { this.showToast('Pilih jenis kelamin', 'error'); return false; }
+        if (!profile.age || profile.age < 10 || profile.age > 120) { this.showToast('Umur: 10-120 tahun', 'error'); return false; }
+        if (!profile.height || profile.height < 100 || profile.height > 250) { this.showToast('Tinggi: 100-250 cm', 'error'); return false; }
+        if (!profile.weight || profile.weight < 30 || profile.weight > 300) { this.showToast('Berat: 30-300 kg', 'error'); return false; }
+        if (!profile.activity) { this.showToast('Pilih level aktivitas', 'error'); return false; }
         return true;
     },
 
@@ -616,6 +635,7 @@ const App = {
         this.showGoalDisplay();
         this.updateDashboard();
         this.updateGeneratorMaxCalories();
+        this.showToast('Goal berhasil disimpan', 'success');
     },
 
     showGoalForm() {
@@ -743,7 +763,7 @@ const App = {
         const calories = parseInt(this.elements.foodCaloriesInput.value);
 
         if (!name || !calories || calories < 1) {
-            alert('Masukkan nama dan kalori');
+            this.showToast('Masukkan nama dan kalori', 'warning');
             return;
         }
 
@@ -790,21 +810,48 @@ const App = {
                 </svg>
             </button>
         `;
-        li.querySelector('.delete-food-btn').addEventListener('click', () => {
-            Storage.removeFood(food.id);
-            this.loadFoods();
-            this.updateDashboard();
-            this.loadHistory(); // Update riwayat kalori
+        li.querySelector('.delete-food-btn').addEventListener('click', async () => {
+            const foodName = food.name;
+            const confirmed = await this.showConfirm({
+                title: 'Hapus Makanan?',
+                message: `"${foodName}" akan dihapus dari daftar hari ini.`,
+                confirmText: 'Hapus',
+                cancelText: 'Batal',
+                type: 'danger'
+            });
+
+            if (confirmed) {
+                Storage.removeFood(food.id);
+                this.loadFoods();
+                this.updateDashboard();
+                this.loadHistory();
+                this.showToast(`"${foodName}" dihapus dari daftar`, 'success');
+            }
         });
         return li;
     },
 
-    handleClearFoods() {
-        if (confirm('Hapus semua makanan hari ini?')) {
+    async handleClearFoods() {
+        const foodCount = Storage.getFoods().length;
+        if (foodCount === 0) {
+            this.showToast('Tidak ada makanan untuk dihapus', 'warning');
+            return;
+        }
+
+        const confirmed = await this.showConfirm({
+            title: 'Hapus Semua Makanan?',
+            message: `${foodCount} makanan akan dihapus dari daftar hari ini. Tindakan ini tidak dapat dibatalkan.`,
+            confirmText: 'Hapus Semua',
+            cancelText: 'Batal',
+            type: 'danger'
+        });
+
+        if (confirmed) {
             Storage.clearFoods();
             this.loadFoods();
             this.updateDashboard();
-            this.loadHistory(); // Update riwayat kalori
+            this.loadHistory();
+            this.showToast(`${foodCount} makanan berhasil dihapus`, 'success');
         }
     },
 
@@ -814,13 +861,14 @@ const App = {
     handleAddWeight() {
         const weight = parseFloat(this.elements.weightInputField.value);
         if (!weight || weight < 30 || weight > 300) {
-            alert('Masukkan berat yang valid (30-300 kg)');
+            this.showToast('Masukkan berat yang valid (30-300 kg)', 'warning');
             return;
         }
 
         Storage.addWeightEntry(weight);
         this.elements.weightInputField.value = '';
         this.loadWeightProgress();
+        this.showToast(`Berat ${weight} kg berhasil dicatat`, 'success');
     },
 
     loadWeightProgress() {
@@ -888,6 +936,7 @@ const App = {
         Storage.addBodyMeasurement(measurements);
         this.elements.measurementForm.style.display = 'none';
         this.loadBodyMeasurements();
+        this.showToast('Ukuran tubuh berhasil disimpan', 'success');
     },
 
     loadBodyMeasurements() {
@@ -988,7 +1037,7 @@ const App = {
     showTemplateModal() {
         const foods = Storage.getFoods();
         if (foods.length === 0) {
-            alert('Tidak ada makanan untuk disimpan sebagai template');
+            this.showToast('Tidak ada makanan untuk disimpan sebagai template', 'warning');
             return;
         }
         this.elements.templateModal.style.display = 'flex';
@@ -1002,7 +1051,7 @@ const App = {
     saveTemplate() {
         const name = this.elements.templateNameInput.value.trim();
         if (!name) {
-            alert('Masukkan nama template');
+            this.showToast('Masukkan nama template', 'warning');
             return;
         }
 
@@ -1010,6 +1059,7 @@ const App = {
         Storage.saveMealTemplate({ name, foods });
         this.hideTemplateModal();
         this.loadTemplates();
+        this.showToast(`Template "${name}" berhasil disimpan`, 'success');
     },
 
     loadTemplates() {
@@ -1036,14 +1086,20 @@ const App = {
         this.elements.templatesList.querySelectorAll('button').forEach(btn => {
             btn.addEventListener('click', () => {
                 const id = parseInt(btn.dataset.id);
+                const templates = Storage.getMealTemplates();
+                const template = templates.find(t => t.id === id);
+                const templateName = template ? template.name : 'Template';
+
                 if (btn.dataset.action === 'apply') {
                     Storage.applyMealTemplate(id);
                     this.loadFoods();
                     this.updateDashboard();
-                    this.loadHistory(); // Update riwayat kalori
+                    this.loadHistory();
+                    this.showToast(`Template "${templateName}" diterapkan`, 'success');
                 } else {
                     Storage.deleteMealTemplate(id);
                     this.loadTemplates();
+                    this.showToast(`Template "${templateName}" dihapus`, 'info');
                 }
             });
         });
@@ -1053,6 +1109,209 @@ const App = {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    },
+
+    // ==================== TOAST NOTIFICATION ====================
+
+    /**
+     * Play notification sound based on type
+     * @param {string} type - 'success', 'error', 'warning', 'info'
+     */
+    playNotificationSound(type) {
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            // Set volume
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+
+            // Different sounds for different types
+            switch (type) {
+                case 'success':
+                    // Pleasant ascending two-tone
+                    oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime); // C5
+                    oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.1); // E5
+                    oscillator.type = 'sine';
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.25);
+                    oscillator.start(audioContext.currentTime);
+                    oscillator.stop(audioContext.currentTime + 0.25);
+                    break;
+
+                case 'error':
+                    // Low descending tone
+                    oscillator.frequency.setValueAtTime(330, audioContext.currentTime); // E4
+                    oscillator.frequency.setValueAtTime(262, audioContext.currentTime + 0.1); // C4
+                    oscillator.type = 'square';
+                    gainNode.gain.setValueAtTime(0.15, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+                    oscillator.start(audioContext.currentTime);
+                    oscillator.stop(audioContext.currentTime + 0.2);
+                    break;
+
+                case 'warning':
+                    // Alert beep (two quick beeps)
+                    oscillator.frequency.setValueAtTime(440, audioContext.currentTime); // A4
+                    oscillator.type = 'triangle';
+                    gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+                    gainNode.gain.setValueAtTime(0.01, audioContext.currentTime + 0.08);
+                    gainNode.gain.setValueAtTime(0.2, audioContext.currentTime + 0.12);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+                    oscillator.start(audioContext.currentTime);
+                    oscillator.stop(audioContext.currentTime + 0.2);
+                    break;
+
+                case 'info':
+                default:
+                    // Soft notification ping
+                    oscillator.frequency.setValueAtTime(587.33, audioContext.currentTime); // D5
+                    oscillator.type = 'sine';
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+                    oscillator.start(audioContext.currentTime);
+                    oscillator.stop(audioContext.currentTime + 0.15);
+                    break;
+            }
+        } catch (e) {
+            // Audio not supported or blocked, silently fail
+            console.log('Audio notification not available');
+        }
+    },
+
+    /**
+     * Show toast notification
+     * @param {string} message - Message to display
+     * @param {string} type - Type: 'success', 'error', 'warning', 'info'
+     * @param {number} duration - Duration in ms (default 3000)
+     */
+    showToast(message, type = 'info', duration = 3000) {
+        const icons = {
+            success: '✓',
+            error: '✕',
+            warning: '⚠',
+            info: 'ℹ'
+        };
+
+        // Play notification sound
+        this.playNotificationSound(type);
+
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.innerHTML = `
+            <span class="toast-icon">${icons[type] || icons.info}</span>
+            <div class="toast-content">
+                <span class="toast-message">${this.escapeHtml(message)}</span>
+            </div>
+            <button class="toast-close">&times;</button>
+        `;
+
+        // Close button handler
+        const closeBtn = toast.querySelector('.toast-close');
+        closeBtn.addEventListener('click', () => this.removeToast(toast));
+
+        // Add to container
+        this.elements.toastContainer.appendChild(toast);
+
+        // Auto remove after duration
+        if (duration > 0) {
+            setTimeout(() => this.removeToast(toast), duration);
+        }
+
+        return toast;
+    },
+
+    /**
+     * Remove toast with animation
+     */
+    removeToast(toast) {
+        if (!toast || !toast.parentElement) return;
+
+        toast.classList.add('toast-out');
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.parentElement.removeChild(toast);
+            }
+        }, 300);
+    },
+
+    /**
+     * Show custom confirm dialog
+     * @param {Object} options - Confirm options
+     * @returns {Promise<boolean>}
+     */
+    showConfirm(options = {}) {
+        return new Promise((resolve) => {
+            const {
+                title = 'Konfirmasi',
+                message = 'Apakah Anda yakin?',
+                confirmText = 'Ya',
+                cancelText = 'Batal',
+                type = 'danger' // danger, warning, info
+            } = options;
+
+            // Set content
+            this.elements.confirmTitle.textContent = title;
+            this.elements.confirmMessage.textContent = message;
+            this.elements.confirmOk.textContent = confirmText;
+            this.elements.confirmCancel.textContent = cancelText;
+
+            // Set icon style
+            this.elements.confirmIcon.className = 'confirm-icon';
+            if (type === 'warning') {
+                this.elements.confirmIcon.classList.add('warning');
+            } else if (type === 'info') {
+                this.elements.confirmIcon.classList.add('info');
+            }
+
+            // Set button style
+            this.elements.confirmOk.className = 'btn';
+            if (type === 'danger') {
+                this.elements.confirmOk.classList.add('btn-danger');
+            } else if (type === 'warning') {
+                this.elements.confirmOk.classList.add('btn-warning');
+            } else {
+                this.elements.confirmOk.classList.add('btn-primary');
+            }
+
+            // Play warning sound
+            this.playNotificationSound('warning');
+
+            // Show modal
+            this.elements.confirmModal.style.display = 'flex';
+
+            // Cleanup function
+            const cleanup = () => {
+                this.elements.confirmOk.removeEventListener('click', onConfirm);
+                this.elements.confirmCancel.removeEventListener('click', onCancel);
+                this.elements.confirmModal.removeEventListener('click', onBackdrop);
+            };
+
+            // Handlers
+            const onConfirm = () => {
+                cleanup();
+                this.elements.confirmModal.style.display = 'none';
+                resolve(true);
+            };
+
+            const onCancel = () => {
+                cleanup();
+                this.elements.confirmModal.style.display = 'none';
+                resolve(false);
+            };
+
+            const onBackdrop = (e) => {
+                if (e.target === this.elements.confirmModal) {
+                    onCancel();
+                }
+            };
+
+            // Attach listeners
+            this.elements.confirmOk.addEventListener('click', onConfirm);
+            this.elements.confirmCancel.addEventListener('click', onCancel);
+            this.elements.confirmModal.addEventListener('click', onBackdrop);
+        });
     },
 
     // ==================== FOOD GENERATOR ====================
@@ -1107,14 +1366,14 @@ const App = {
         const budgetMax = parseInt(this.elements.genBudgetMax.value) || Infinity;
 
         if (!targetCalories || targetCalories < 50) {
-            alert('Masukkan target kalori minimal 50 kcal');
+            this.showToast('Masukkan target kalori minimal 50 kcal', 'warning');
             return;
         }
 
         // Validate against daily target calories
         const dailyTarget = this.state.targetCalories;
         if (targetCalories > dailyTarget) {
-            alert(`Target kalori tidak boleh melebihi target harian kamu (${dailyTarget.toLocaleString('id-ID')} kcal)`);
+            this.showToast(`Target kalori tidak boleh melebihi target harian (${dailyTarget.toLocaleString('id-ID')} kcal)`, 'error');
             return;
         }
 
@@ -1138,7 +1397,7 @@ const App = {
      */
     generateFoodRecommendations(minCalories, maxCalories, budgetMin, budgetMax, targetCalories) {
         const allFoods = FoodsDB.getAll();
-        
+
         const results = allFoods
             .filter(food => {
                 // Filter by calorie range
@@ -1272,7 +1531,7 @@ const App = {
      */
     toggleFoodSelection(index, isSelected) {
         const item = this.elements.generatorList.querySelector(`[data-index="${index}"]`);
-        
+
         if (isSelected) {
             this.state.generator.selected.add(index);
             item?.classList.add('selected');
@@ -1351,9 +1610,12 @@ const App = {
         const results = this.state.generator.results;
 
         if (selected.size === 0) {
-            alert('Pilih minimal satu makanan');
+            this.showToast('Pilih minimal satu makanan', 'warning');
             return;
         }
+
+        // Store count before clearing (FIX: selected is a reference that gets cleared)
+        const selectedCount = selected.size;
 
         // Add each selected food
         selected.forEach(index => {
@@ -1371,8 +1633,8 @@ const App = {
         this.updateDashboard();
         this.loadHistory();
 
-        // Show success message
-        alert(`${selected.size} makanan berhasil ditambahkan!`);
+        // Show success message with stored count
+        this.showToast(`${selectedCount} makanan berhasil ditambahkan!`, 'success');
     },
 
     /**
@@ -1407,12 +1669,13 @@ const App = {
         const newPrice = parseInt(this.elements.priceEditInput.value);
 
         if (!newPrice || newPrice < 0) {
-            alert('Masukkan harga yang valid');
+            this.showToast('Masukkan harga yang valid', 'warning');
             return;
         }
 
         Storage.saveCustomPrice(foodName, newPrice);
         this.hidePriceModal();
+        this.showToast(`Harga "${foodName}" disimpan: Rp ${newPrice.toLocaleString('id-ID')}`, 'success');
 
         // Refresh generator results
         this.handleGeneratorSubmit();
@@ -1425,6 +1688,7 @@ const App = {
         const foodName = this.elements.priceEditFoodName.dataset.food;
         Storage.deleteCustomPrice(foodName);
         this.hidePriceModal();
+        this.showToast(`Harga "${foodName}" dikembalikan ke default`, 'info');
 
         // Refresh generator results
         this.handleGeneratorSubmit();

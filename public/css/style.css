@@ -238,6 +238,16 @@ input::placeholder {
     color: var(--white);
 }
 
+.btn-warning {
+    background: rgba(241, 196, 15, 0.15);
+    color: #b8860b;
+}
+
+.btn-warning:hover {
+    background: var(--warning);
+    color: var(--text-dark);
+}
+
 .btn-icon {
     background: none;
     border: none;
@@ -1421,8 +1431,51 @@ input::placeholder {
     font-size: 0.75rem;
 }
 
-/* Modal */
-.modal {
+/* Modal Overlay */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: var(--space-md);
+    backdrop-filter: blur(4px);
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.modal-overlay .modal {
+    position: relative;
+    background: var(--white);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.3s ease;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* Legacy Modal (for template modal etc) */
+.modal:not(.confirm-modal):not(.price-edit-modal) {
     position: fixed;
     top: 0;
     left: 0;
@@ -1798,5 +1851,227 @@ input::placeholder {
         margin-top: var(--space-xs);
         padding-top: var(--space-xs);
         border-top: 1px solid var(--gray-200);
+    }
+}
+
+/* ==========================================
+   TOAST NOTIFICATION STYLES
+   ========================================== */
+
+.toast-container {
+    position: fixed;
+    top: var(--space-lg);
+    right: var(--space-md);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    max-width: 350px;
+    pointer-events: none;
+}
+
+.toast {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-md) var(--space-lg);
+    border-radius: var(--radius-lg);
+    background: var(--white);
+    box-shadow: var(--shadow-lg);
+    animation: toastSlideIn 0.3s ease;
+    pointer-events: auto;
+    border-left: 4px solid var(--gray-400);
+}
+
+.toast.toast-out {
+    animation: toastSlideOut 0.3s ease forwards;
+}
+
+@keyframes toastSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes toastSlideOut {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+}
+
+.toast-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.toast-content {
+    flex: 1;
+}
+
+.toast-message {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--gray-800);
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    color: var(--gray-400);
+    cursor: pointer;
+    padding: 4px;
+    font-size: 1.25rem;
+    line-height: 1;
+    transition: color var(--transition);
+}
+
+.toast-close:hover {
+    color: var(--gray-600);
+}
+
+/* Toast Types */
+.toast-success {
+    border-left-color: var(--success);
+    background: linear-gradient(135deg, var(--white) 0%, #f0fdf4 100%);
+}
+
+.toast-success .toast-icon {
+    color: var(--success);
+}
+
+.toast-error {
+    border-left-color: var(--danger);
+    background: linear-gradient(135deg, var(--white) 0%, #fef2f2 100%);
+}
+
+.toast-error .toast-icon {
+    color: var(--danger);
+}
+
+.toast-warning {
+    border-left-color: var(--warning);
+    background: linear-gradient(135deg, var(--white) 0%, #fffbeb 100%);
+}
+
+.toast-warning .toast-icon {
+    color: var(--warning);
+}
+
+.toast-info {
+    border-left-color: var(--secondary);
+    background: linear-gradient(135deg, var(--white) 0%, #eff6ff 100%);
+}
+
+.toast-info .toast-icon {
+    color: var(--secondary);
+}
+
+/* Toast Responsive */
+@media (max-width: 480px) {
+    .toast-container {
+        left: var(--space-sm);
+        right: var(--space-sm);
+        max-width: none;
+    }
+    
+    .toast {
+        padding: var(--space-sm) var(--space-md);
+    }
+}
+
+/* ========================================
+   CONFIRM MODAL
+======================================== */
+.confirm-modal {
+    max-width: 360px;
+    text-align: center;
+    padding: var(--space-xl);
+}
+
+.confirm-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto var(--space-md);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(231, 76, 60, 0.1), rgba(231, 76, 60, 0.2));
+    color: var(--danger);
+    animation: confirmPulse 0.5s ease;
+}
+
+.confirm-icon.warning {
+    background: linear-gradient(135deg, rgba(241, 196, 15, 0.1), rgba(241, 196, 15, 0.2));
+    color: var(--warning);
+}
+
+.confirm-icon.info {
+    background: linear-gradient(135deg, rgba(52, 152, 219, 0.1), rgba(52, 152, 219, 0.2));
+    color: var(--secondary);
+}
+
+@keyframes confirmPulse {
+    0% {
+        transform: scale(0.5);
+        opacity: 0;
+    }
+    50% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.confirm-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-dark);
+    margin-bottom: var(--space-sm);
+}
+
+.confirm-message {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    margin-bottom: var(--space-lg);
+    line-height: 1.5;
+}
+
+.confirm-actions {
+    display: flex;
+    gap: var(--space-sm);
+    justify-content: center;
+}
+
+.confirm-actions .btn {
+    min-width: 100px;
+    padding: var(--space-sm) var(--space-lg);
+    margin: 0;
+}
+
+@media (max-width: 480px) {
+    .confirm-modal {
+        margin: var(--space-md);
+        padding: var(--space-lg);
+    }
+    
+    .confirm-actions {
+        flex-direction: column-reverse;
+    }
+    
+    .confirm-actions .btn {
+        width: 100%;
     }
 }
