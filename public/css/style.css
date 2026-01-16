@@ -1509,6 +1509,247 @@ input::placeholder {
     margin-bottom: var(--space-sm);
 }
 
+/* ==========================================
+   FOOD GENERATOR STYLES
+   ========================================== */
+
+/* Generator Badge */
+.generator-badge {
+    font-size: 0.65rem;
+    background: var(--warning);
+    color: var(--white);
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.section-description {
+    font-size: 0.875rem;
+    color: var(--gray-500);
+    margin-bottom: var(--space-md);
+}
+
+/* Generator Form */
+.generator-form {
+    margin-bottom: var(--space-lg);
+}
+
+/* Generator Results */
+.generator-results {
+    border-top: 1px solid var(--gray-200);
+    padding-top: var(--space-lg);
+}
+
+.generator-results-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-md);
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+}
+
+.generator-results-header h3 {
+    font-size: 1rem;
+    color: var(--gray-700);
+    margin: 0;
+}
+
+.generator-actions {
+    display: flex;
+    gap: var(--space-xs);
+}
+
+.generator-actions .btn-small {
+    padding: var(--space-xs) var(--space-sm);
+    font-size: 0.75rem;
+}
+
+/* Generator Summary */
+.generator-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--gray-100);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-md);
+    font-size: 0.875rem;
+}
+
+.generator-summary span {
+    color: var(--gray-600);
+}
+
+#gen-selected-calories,
+#gen-selected-price {
+    font-weight: 600;
+    color: var(--primary-dark);
+}
+
+/* Generator List */
+.generator-list {
+    list-style: none;
+    max-height: 400px;
+    overflow-y: auto;
+    margin-bottom: var(--space-md);
+}
+
+.generator-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    background: var(--gray-50);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-sm);
+    transition: all var(--transition);
+    cursor: pointer;
+}
+
+.generator-item:hover {
+    background: var(--gray-100);
+}
+
+.generator-item.selected {
+    background: var(--primary-light);
+    border: 2px solid var(--primary);
+}
+
+.generator-item-checkbox {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: var(--primary);
+}
+
+.generator-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.generator-item-name {
+    font-weight: 500;
+    color: var(--gray-800);
+    margin-bottom: 2px;
+}
+
+.generator-item-details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    font-size: 0.75rem;
+    color: var(--gray-500);
+}
+
+.generator-item-calories {
+    font-weight: 600;
+    color: var(--primary-dark);
+}
+
+.generator-item-portion {
+    color: var(--gray-400);
+}
+
+/* Price Display */
+.generator-item-price {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.price-value {
+    font-weight: 600;
+    color: var(--gray-700);
+    font-size: 0.875rem;
+}
+
+.price-value.custom {
+    color: var(--secondary);
+}
+
+.edit-price-btn {
+    background: none;
+    border: none;
+    color: var(--gray-400);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.edit-price-btn:hover {
+    background: var(--gray-200);
+    color: var(--gray-600);
+}
+
+.edit-price-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Add Selected Button */
+#add-selected-foods {
+    margin-top: var(--space-md);
+}
+
+/* Price Modal */
+.modal-sm {
+    max-width: 350px;
+}
+
+.price-edit-food-name {
+    font-weight: 600;
+    color: var(--gray-800);
+    font-size: 1.1rem;
+    margin-bottom: var(--space-md);
+    text-align: center;
+}
+
+.price-edit-hint {
+    font-size: 0.75rem;
+    color: var(--gray-400);
+    margin-top: var(--space-xs);
+    font-style: italic;
+}
+
+#reset-price-edit {
+    background: var(--gray-100);
+    color: var(--gray-600);
+}
+
+#reset-price-edit:hover {
+    background: var(--gray-200);
+}
+
+/* Match Indicator */
+.match-indicator {
+    font-size: 0.65rem;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    margin-left: var(--space-xs);
+}
+
+.match-indicator.exact {
+    background: var(--success);
+    color: var(--white);
+}
+
+.match-indicator.close {
+    background: var(--primary-light);
+    color: var(--primary-dark);
+}
+
+.match-indicator.far {
+    background: var(--gray-200);
+    color: var(--gray-600);
+}
+
 /* Responsive for new features */
 @media (max-width: 480px) {
     .dashboard-grid {
@@ -1534,5 +1775,28 @@ input::placeholder {
     
     .weight-input-row .btn {
         width: 100%;
+    }
+    
+    /* Generator responsive */
+    .generator-results-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .generator-summary {
+        flex-direction: column;
+        gap: var(--space-xs);
+    }
+    
+    .generator-item {
+        flex-wrap: wrap;
+    }
+    
+    .generator-item-price {
+        width: 100%;
+        justify-content: flex-end;
+        margin-top: var(--space-xs);
+        padding-top: var(--space-xs);
+        border-top: 1px solid var(--gray-200);
     }
 }

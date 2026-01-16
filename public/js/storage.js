@@ -15,7 +15,8 @@ const Storage = {
         WATER_LOG: 'kcal_water_log',
         WATER_LAST_DATE: 'kcal_water_last_date',
         BODY_MEASUREMENTS: 'kcal_body_measurements',
-        MEAL_TEMPLATES: 'kcal_meal_templates'
+        MEAL_TEMPLATES: 'kcal_meal_templates',
+        CUSTOM_PRICES: 'kcal_custom_prices'
     },
 
     // ==================== PROFILE ====================
@@ -468,6 +469,70 @@ const Storage = {
         });
         
         return true;
+    },
+
+    // ==================== CUSTOM PRICES ====================
+    
+    /**
+     * Get all custom prices
+     * @returns {Object} { 'foodName': price, ... }
+     */
+    getAllCustomPrices() {
+        try {
+            const data = localStorage.getItem(this.KEYS.CUSTOM_PRICES);
+            return data ? JSON.parse(data) : {};
+        } catch (error) {
+            console.error('Error getting custom prices:', error);
+            return {};
+        }
+    },
+
+    /**
+     * Get custom price for a specific food
+     * @param {string} foodName - Food name
+     * @returns {number|null} Custom price or null if not set
+     */
+    getCustomPrice(foodName) {
+        const prices = this.getAllCustomPrices();
+        return prices[foodName.toLowerCase()] || null;
+    },
+
+    /**
+     * Save custom price for a food
+     * @param {string} foodName - Food name
+     * @param {number} price - Price in Rupiah
+     */
+    saveCustomPrice(foodName, price) {
+        try {
+            const prices = this.getAllCustomPrices();
+            prices[foodName.toLowerCase()] = parseInt(price);
+            localStorage.setItem(this.KEYS.CUSTOM_PRICES, JSON.stringify(prices));
+            return true;
+        } catch (error) {
+            console.error('Error saving custom price:', error);
+            return false;
+        }
+    },
+
+    /**
+     * Delete custom price for a food
+     * @param {string} foodName - Food name
+     */
+    deleteCustomPrice(foodName) {
+        const prices = this.getAllCustomPrices();
+        delete prices[foodName.toLowerCase()];
+        localStorage.setItem(this.KEYS.CUSTOM_PRICES, JSON.stringify(prices));
+    },
+
+    /**
+     * Get effective price for a food (custom price if exists, otherwise default)
+     * @param {string} foodName - Food name
+     * @param {number} defaultPrice - Default price from database
+     * @returns {number} Effective price
+     */
+    getEffectivePrice(foodName, defaultPrice) {
+        const customPrice = this.getCustomPrice(foodName);
+        return customPrice !== null ? customPrice : defaultPrice;
     },
 
     // ==================== DAILY RESET ====================

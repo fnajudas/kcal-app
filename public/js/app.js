@@ -18,6 +18,10 @@ const App = {
             selectedIndex: -1,
             suggestions: [],
             isOpen: false
+        },
+        generator: {
+            results: [],
+            selected: new Set()
         }
     },
 
@@ -147,6 +151,33 @@ const App = {
             calorieChartBars: document.getElementById('calorie-chart-bars'),
             historyList: document.getElementById('history-list'),
 
+            // Generator
+            generatorSection: document.getElementById('generator-section'),
+            generatorForm: document.getElementById('generator-form'),
+            genTargetCalories: document.getElementById('gen-target-calories'),
+            genTolerance: document.getElementById('gen-tolerance'),
+            genBudgetMin: document.getElementById('gen-budget-min'),
+            genBudgetMax: document.getElementById('gen-budget-max'),
+            generatorResults: document.getElementById('generator-results'),
+            generatorList: document.getElementById('generator-list'),
+            generatorEmpty: document.getElementById('generator-empty'),
+            generatorSummary: document.getElementById('generator-summary'),
+            genResultCount: document.getElementById('gen-result-count'),
+            genSelectedCount: document.getElementById('gen-selected-count'),
+            genSelectedCalories: document.getElementById('gen-selected-calories'),
+            genSelectedPrice: document.getElementById('gen-selected-price'),
+            selectAllFoods: document.getElementById('select-all-foods'),
+            clearSelection: document.getElementById('clear-selection'),
+            addSelectedFoods: document.getElementById('add-selected-foods'),
+
+            // Price Modal
+            priceModal: document.getElementById('price-modal'),
+            closePriceModal: document.getElementById('close-price-modal'),
+            priceEditFoodName: document.getElementById('price-edit-food-name'),
+            priceEditInput: document.getElementById('price-edit-input'),
+            confirmPriceEdit: document.getElementById('confirm-price-edit'),
+            resetPriceEdit: document.getElementById('reset-price-edit'),
+
             // Settings
             settingsToggle: document.getElementById('settings-toggle'),
             settingsContent: document.getElementById('settings-content'),
@@ -206,6 +237,9 @@ const App = {
 
         // Autocomplete
         this.bindAutocompleteEvents();
+
+        // Generator
+        this.bindGeneratorEvents();
 
         // Settings
         this.bindSettingsEvents();
@@ -450,6 +484,7 @@ const App = {
             this.loadBodyMeasurements();
             this.loadHistory();
             this.loadTemplates();
+            this.updateGeneratorMaxCalories();
         }
     },
 
@@ -457,6 +492,7 @@ const App = {
         this.elements.goalSection.style.display = 'block';
         this.elements.dashboardSection.style.display = 'block';
         this.elements.foodSection.style.display = 'block';
+        this.elements.generatorSection.style.display = 'block';
         this.elements.weightSection.style.display = 'block';
         this.elements.measurementsSection.style.display = 'block';
         this.elements.historySection.style.display = 'block';
@@ -486,6 +522,7 @@ const App = {
         this.showAllSections();
         this.showGoalForm();
         this.updateDashboard();
+        this.updateGeneratorMaxCalories();
     },
 
     validateProfile(profile) {
@@ -578,6 +615,7 @@ const App = {
 
         this.showGoalDisplay();
         this.updateDashboard();
+        this.updateGeneratorMaxCalories();
     },
 
     showGoalForm() {
@@ -1015,6 +1053,381 @@ const App = {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    },
+
+    // ==================== FOOD GENERATOR ====================
+
+    /**
+     * Update generator max calories based on daily target
+     */
+    updateGeneratorMaxCalories() {
+        if (this.elements.genTargetCalories && this.state.targetCalories) {
+            this.elements.genTargetCalories.max = this.state.targetCalories;
+            this.elements.genTargetCalories.placeholder = `Max ${this.state.targetCalories}`;
+        }
+    },
+
+    /**
+     * Bind generator events
+     */
+    bindGeneratorEvents() {
+        // Generator form submit
+        this.elements.generatorForm?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleGeneratorSubmit();
+        });
+
+        // Select all / clear selection
+        this.elements.selectAllFoods?.addEventListener('click', () => this.selectAllGeneratorFoods());
+        this.elements.clearSelection?.addEventListener('click', () => this.clearGeneratorSelection());
+
+        // Add selected foods
+        this.elements.addSelectedFoods?.addEventListener('click', () => this.addSelectedFoodsToList());
+
+        // Price modal
+        this.elements.closePriceModal?.addEventListener('click', () => this.hidePriceModal());
+        this.elements.confirmPriceEdit?.addEventListener('click', () => this.savePriceEdit());
+        this.elements.resetPriceEdit?.addEventListener('click', () => this.resetPriceToDefault());
+
+        // Close modal on backdrop click
+        this.elements.priceModal?.addEventListener('click', (e) => {
+            if (e.target === this.elements.priceModal) {
+                this.hidePriceModal();
+            }
+        });
+    },
+
+    /**
+     * Handle generator form submit
+     */
+    handleGeneratorSubmit() {
+        const targetCalories = parseInt(this.elements.genTargetCalories.value);
+        const tolerance = parseInt(this.elements.genTolerance.value) / 100;
+        const budgetMin = parseInt(this.elements.genBudgetMin.value) || 0;
+        const budgetMax = parseInt(this.elements.genBudgetMax.value) || Infinity;
+
+        if (!targetCalories || targetCalories < 50) {
+            alert('Masukkan target kalori minimal 50 kcal');
+            return;
+        }
+
+        // Validate against daily target calories
+        const dailyTarget = this.state.targetCalories;
+        if (targetCalories > dailyTarget) {
+            alert(`Target kalori tidak boleh melebihi target harian kamu (${dailyTarget.toLocaleString('id-ID')} kcal)`);
+            return;
+        }
+
+        // Calculate calorie range with tolerance
+        const minCalories = targetCalories * (1 - tolerance);
+        const maxCalories = targetCalories * (1 + tolerance);
+
+        // Filter foods from database
+        const results = this.generateFoodRecommendations(minCalories, maxCalories, budgetMin, budgetMax, targetCalories);
+
+        // Store results
+        this.state.generator.results = results;
+        this.state.generator.selected.clear();
+
+        // Display results
+        this.displayGeneratorResults(results);
+    },
+
+    /**
+     * Generate food recommendations based on criteria
+     */
+    generateFoodRecommendations(minCalories, maxCalories, budgetMin, budgetMax, targetCalories) {
+        const allFoods = FoodsDB.getAll();
+        
+        const results = allFoods
+            .filter(food => {
+                // Filter by calorie range
+                if (food.calories < minCalories || food.calories > maxCalories) {
+                    return false;
+                }
+
+                // Get effective price (custom or default)
+                const price = Storage.getEffectivePrice(food.name, food.price || 0);
+
+                // Filter by budget range
+                if (price < budgetMin || price > budgetMax) {
+                    return false;
+                }
+
+                return true;
+            })
+            .map(food => {
+                // Calculate how close to target
+                const calorieDiff = Math.abs(food.calories - targetCalories);
+                const matchPercentage = 100 - (calorieDiff / targetCalories * 100);
+                const effectivePrice = Storage.getEffectivePrice(food.name, food.price || 0);
+                const isCustomPrice = Storage.getCustomPrice(food.name) !== null;
+
+                return {
+                    ...food,
+                    effectivePrice,
+                    isCustomPrice,
+                    matchPercentage: Math.max(0, matchPercentage),
+                    calorieDiff
+                };
+            })
+            .sort((a, b) => a.calorieDiff - b.calorieDiff); // Sort by closest to target
+
+        return results;
+    },
+
+    /**
+     * Display generator results
+     */
+    displayGeneratorResults(results) {
+        this.elements.generatorResults.style.display = 'block';
+
+        if (results.length === 0) {
+            this.elements.generatorList.innerHTML = '';
+            this.elements.generatorEmpty.style.display = 'block';
+            this.elements.addSelectedFoods.style.display = 'none';
+            this.updateGeneratorSummary();
+            return;
+        }
+
+        this.elements.generatorEmpty.style.display = 'none';
+        this.elements.addSelectedFoods.style.display = 'block';
+
+        this.elements.generatorList.innerHTML = results.map((food, index) => `
+            <li class="generator-item" data-index="${index}">
+                <input type="checkbox" class="generator-item-checkbox" data-index="${index}">
+                <div class="generator-item-info">
+                    <span class="generator-item-name">
+                        ${this.escapeHtml(food.name)}
+                        ${this.getMatchIndicator(food.matchPercentage)}
+                    </span>
+                    <div class="generator-item-details">
+                        <span class="generator-item-calories">${food.calories} kcal</span>
+                        <span class="generator-item-portion">${food.portion}</span>
+                    </div>
+                </div>
+                <div class="generator-item-price">
+                    <span class="price-value ${food.isCustomPrice ? 'custom' : ''}">
+                        Rp ${food.effectivePrice.toLocaleString('id-ID')}
+                    </span>
+                    <button class="edit-price-btn" data-food="${this.escapeHtml(food.name)}" data-price="${food.price}" title="Edit harga">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                    </button>
+                </div>
+            </li>
+        `).join('');
+
+        // Bind events
+        this.elements.generatorList.querySelectorAll('.generator-item').forEach(item => {
+            const checkbox = item.querySelector('.generator-item-checkbox');
+            const index = parseInt(item.dataset.index);
+
+            // Click on item to toggle selection
+            item.addEventListener('click', (e) => {
+                if (e.target.closest('.edit-price-btn')) return;
+                checkbox.checked = !checkbox.checked;
+                this.toggleFoodSelection(index, checkbox.checked);
+            });
+
+            // Checkbox change
+            checkbox.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+            checkbox.addEventListener('change', () => {
+                this.toggleFoodSelection(index, checkbox.checked);
+            });
+        });
+
+        // Bind price edit buttons
+        this.elements.generatorList.querySelectorAll('.edit-price-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const foodName = btn.dataset.food;
+                const defaultPrice = parseInt(btn.dataset.price);
+                this.showPriceModal(foodName, defaultPrice);
+            });
+        });
+
+        this.updateGeneratorSummary();
+    },
+
+    /**
+     * Get match indicator HTML based on percentage
+     */
+    getMatchIndicator(percentage) {
+        if (percentage >= 95) {
+            return '<span class="match-indicator exact">Exact</span>';
+        } else if (percentage >= 80) {
+            return '<span class="match-indicator close">Close</span>';
+        } else {
+            return '<span class="match-indicator far">~' + Math.round(percentage) + '%</span>';
+        }
+    },
+
+    /**
+     * Toggle food selection
+     */
+    toggleFoodSelection(index, isSelected) {
+        const item = this.elements.generatorList.querySelector(`[data-index="${index}"]`);
+        
+        if (isSelected) {
+            this.state.generator.selected.add(index);
+            item?.classList.add('selected');
+        } else {
+            this.state.generator.selected.delete(index);
+            item?.classList.remove('selected');
+        }
+
+        this.updateGeneratorSummary();
+    },
+
+    /**
+     * Select all generator foods
+     */
+    selectAllGeneratorFoods() {
+        this.state.generator.results.forEach((_, index) => {
+            this.state.generator.selected.add(index);
+        });
+
+        this.elements.generatorList.querySelectorAll('.generator-item').forEach(item => {
+            item.classList.add('selected');
+            item.querySelector('.generator-item-checkbox').checked = true;
+        });
+
+        this.updateGeneratorSummary();
+    },
+
+    /**
+     * Clear generator selection
+     */
+    clearGeneratorSelection() {
+        this.state.generator.selected.clear();
+
+        this.elements.generatorList.querySelectorAll('.generator-item').forEach(item => {
+            item.classList.remove('selected');
+            item.querySelector('.generator-item-checkbox').checked = false;
+        });
+
+        this.updateGeneratorSummary();
+    },
+
+    /**
+     * Update generator summary
+     */
+    updateGeneratorSummary() {
+        const results = this.state.generator.results;
+        const selected = this.state.generator.selected;
+
+        // Total results
+        this.elements.genResultCount.textContent = `${results.length} makanan ditemukan`;
+
+        // Selected count
+        this.elements.genSelectedCount.textContent = `${selected.size} dipilih`;
+
+        // Calculate selected totals
+        let totalCalories = 0;
+        let totalPrice = 0;
+
+        selected.forEach(index => {
+            const food = results[index];
+            if (food) {
+                totalCalories += food.calories;
+                totalPrice += food.effectivePrice;
+            }
+        });
+
+        this.elements.genSelectedCalories.textContent = `${totalCalories.toLocaleString('id-ID')} kcal`;
+        this.elements.genSelectedPrice.textContent = `Rp ${totalPrice.toLocaleString('id-ID')}`;
+    },
+
+    /**
+     * Add selected foods to list
+     */
+    addSelectedFoodsToList() {
+        const selected = this.state.generator.selected;
+        const results = this.state.generator.results;
+
+        if (selected.size === 0) {
+            alert('Pilih minimal satu makanan');
+            return;
+        }
+
+        // Add each selected food
+        selected.forEach(index => {
+            const food = results[index];
+            if (food) {
+                Storage.addFood({ name: food.name, calories: food.calories });
+            }
+        });
+
+        // Clear selection
+        this.clearGeneratorSelection();
+
+        // Refresh UI
+        this.loadFoods();
+        this.updateDashboard();
+        this.loadHistory();
+
+        // Show success message
+        alert(`${selected.size} makanan berhasil ditambahkan!`);
+    },
+
+    /**
+     * Show price edit modal
+     */
+    showPriceModal(foodName, defaultPrice) {
+        this.elements.priceEditFoodName.textContent = foodName;
+        this.elements.priceEditFoodName.dataset.food = foodName;
+        this.elements.priceEditFoodName.dataset.defaultPrice = defaultPrice;
+
+        // Get current effective price
+        const currentPrice = Storage.getEffectivePrice(foodName, defaultPrice);
+        this.elements.priceEditInput.value = currentPrice;
+
+        this.elements.priceModal.style.display = 'flex';
+        this.elements.priceEditInput.focus();
+    },
+
+    /**
+     * Hide price modal
+     */
+    hidePriceModal() {
+        this.elements.priceModal.style.display = 'none';
+        this.elements.priceEditInput.value = '';
+    },
+
+    /**
+     * Save price edit
+     */
+    savePriceEdit() {
+        const foodName = this.elements.priceEditFoodName.dataset.food;
+        const newPrice = parseInt(this.elements.priceEditInput.value);
+
+        if (!newPrice || newPrice < 0) {
+            alert('Masukkan harga yang valid');
+            return;
+        }
+
+        Storage.saveCustomPrice(foodName, newPrice);
+        this.hidePriceModal();
+
+        // Refresh generator results
+        this.handleGeneratorSubmit();
+    },
+
+    /**
+     * Reset price to default
+     */
+    resetPriceToDefault() {
+        const foodName = this.elements.priceEditFoodName.dataset.food;
+        Storage.deleteCustomPrice(foodName);
+        this.hidePriceModal();
+
+        // Refresh generator results
+        this.handleGeneratorSubmit();
     }
 };
 
