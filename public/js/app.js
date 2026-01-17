@@ -361,20 +361,28 @@ const App = {
             return;
         }
 
-        // 1. Search custom foods first (user's own foods - highest priority)
-        let customResults = Storage.searchCustomFoods(query, 3);
+        // 1. Search all sources and combine by relevance
+        let customResults = Storage.searchCustomFoodsWithScore(query, 10);
+        let localResults = FoodsDB.searchWithScore(query, 10);
         
-        // 2. Search local database
-        let localResults = FoodsDB.search(query, 6);
+        // Merge results, avoiding duplicates (prefer custom if same name)
+        const seenNames = new Set();
+        let allResults = [];
         
-        // Filter out duplicates from local results
-        const customNames = customResults.map(r => r.name.toLowerCase());
-        localResults = localResults.filter(r => !customNames.includes(r.name.toLowerCase()));
+        // Combine all results with scores
+        [...customResults, ...localResults].forEach(item => {
+            const nameLower = item.food.name.toLowerCase();
+            if (!seenNames.has(nameLower)) {
+                seenNames.add(nameLower);
+                allResults.push(item);
+            }
+        });
         
-        // Combine results: custom first, then local
-        let results = [...customResults, ...localResults].slice(0, 8);
+        // Sort by score (highest first) and take top 8
+        allResults.sort((a, b) => b.score - a.score);
+        let results = allResults.slice(0, 8).map(item => item.food);
 
-        // 3. Search API if not enough results
+        // 2. Search API if not enough results
         if (CalorieAPI.isConfigured() && results.length < 3) {
             hint.textContent = 'Mencari...';
             try {

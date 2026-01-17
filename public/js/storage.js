@@ -640,6 +640,48 @@ const Storage = {
     },
 
     /**
+     * Search custom foods and return with scores (for combined sorting)
+     * @param {string} query - Search query
+     * @param {number} limit - Max results
+     * @returns {Array} Array of { food, score }
+     */
+    searchCustomFoodsWithScore(query, limit = 10) {
+        if (!query || query.length < 2) {
+            return [];
+        }
+
+        const normalizedQuery = query.toLowerCase().trim();
+        const foods = this.getCustomFoods();
+        
+        const scored = foods.map(food => {
+            const name = food.name.toLowerCase();
+            let score = 0;
+
+            // Exact match
+            if (name === normalizedQuery) {
+                score = 100;
+            }
+            // Starts with query
+            else if (name.startsWith(normalizedQuery)) {
+                score = 80;
+            }
+            // Contains query
+            else if (name.includes(normalizedQuery)) {
+                score = 50;
+            }
+
+            // Small boost by usage count (max +10)
+            score += Math.min((food.usageCount || 1), 10);
+
+            return { food: { ...food, source: 'custom' }, score };
+        });
+
+        return scored
+            .filter(item => item.score > 0)
+            .slice(0, limit);
+    },
+
+    /**
      * Delete a custom food
      * @param {string} foodName - Food name to delete
      */

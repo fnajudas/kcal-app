@@ -305,6 +305,63 @@ const FoodsDB = {
     },
 
     /**
+     * Search foods and return with scores (for combined sorting with custom foods)
+     * @param {string} query - Search query
+     * @param {number} limit - Max results
+     * @returns {Array} Array of { food, score }
+     */
+    searchWithScore(query, limit = 10) {
+        if (!query || query.length < 2) {
+            return [];
+        }
+
+        const normalizedQuery = query.toLowerCase().trim();
+        
+        const scored = this.foods.map(food => {
+            const name = food.name.toLowerCase();
+            let score = 0;
+
+            // Exact match
+            if (name === normalizedQuery) {
+                score = 100;
+            }
+            // Starts with query
+            else if (name.startsWith(normalizedQuery)) {
+                score = 80;
+            }
+            // Contains query as word
+            else if (name.includes(` ${normalizedQuery}`) || name.includes(`${normalizedQuery} `)) {
+                score = 60;
+            }
+            // Contains query anywhere
+            else if (name.includes(normalizedQuery)) {
+                score = 40;
+            }
+            // Fuzzy match
+            else {
+                const queryWords = normalizedQuery.split(' ');
+                const nameWords = name.split(' ');
+                
+                queryWords.forEach(qWord => {
+                    nameWords.forEach(nWord => {
+                        if (nWord.startsWith(qWord)) {
+                            score += 20;
+                        } else if (nWord.includes(qWord)) {
+                            score += 10;
+                        }
+                    });
+                });
+            }
+
+            return { food: { ...food, source: 'local' }, score };
+        });
+
+        return scored
+            .filter(item => item.score > 0)
+            .slice(0, limit);
+    },
+
+    /**
      * Get food by exact name
      * @param {string} name - Food name
      * @returns {Object|null} Food item or null
