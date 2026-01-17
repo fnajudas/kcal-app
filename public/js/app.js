@@ -254,6 +254,21 @@ const App = {
 
         // Settings
         this.bindSettingsEvents();
+
+        // Visibility change - check daily reset when user returns to tab
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                const wasReset = Storage.checkAndResetDaily();
+                if (wasReset) {
+                    this.loadFoods();
+                    this.updateDashboard();
+                    this.loadHistory();
+                    this.loadWaterIntake();
+                    this.updateCurrentDate();
+                    this.showToast('Hari baru dimulai! Data kemarin sudah disimpan ke riwayat.', 'info');
+                }
+            }
+        });
     },
 
     /**
@@ -346,14 +361,26 @@ const App = {
             return;
         }
 
-        let results = FoodsDB.search(query, 6);
+        // 1. Search custom foods first (user's own foods - highest priority)
+        let customResults = Storage.searchCustomFoods(query, 3);
+        
+        // 2. Search local database
+        let localResults = FoodsDB.search(query, 6);
+        
+        // Filter out duplicates from local results
+        const customNames = customResults.map(r => r.name.toLowerCase());
+        localResults = localResults.filter(r => !customNames.includes(r.name.toLowerCase()));
+        
+        // Combine results: custom first, then local
+        let results = [...customResults, ...localResults].slice(0, 8);
 
+        // 3. Search API if not enough results
         if (CalorieAPI.isConfigured() && results.length < 3) {
             hint.textContent = 'Mencari...';
             try {
                 const apiResults = await CalorieAPI.search(query);
-                const localNames = results.map(r => r.name.toLowerCase());
-                const uniqueApiResults = apiResults.filter(r => !localNames.includes(r.name.toLowerCase()));
+                const existingNames = results.map(r => r.name.toLowerCase());
+                const uniqueApiResults = apiResults.filter(r => !existingNames.includes(r.name.toLowerCase()));
                 results = [...results, ...uniqueApiResults].slice(0, 8);
             } catch (error) {
                 console.error('API error:', error);
@@ -364,7 +391,7 @@ const App = {
         this.state.autocomplete.selectedIndex = -1;
 
         if (results.length === 0) {
-            suggestions.innerHTML = '<li class="autocomplete-no-results">Tidak ditemukan.</li>';
+            suggestions.innerHTML = '<li class="autocomplete-no-results">Tidak ditemukan. Makanan akan disimpan otomatis.</li>';
             suggestions.classList.add('active');
             this.state.autocomplete.isOpen = true;
             hint.textContent = '';
@@ -372,21 +399,49 @@ const App = {
         }
 
         suggestions.innerHTML = results.map((food, index) => `
-            <li class="autocomplete-item ${food.source === 'api' ? 'from-api' : ''}" data-index="${index}">
+            <li class="autocomplete-item ${food.source === 'api' ? 'from-api' : ''} ${food.source === 'custom' ? 'from-custom' : ''}" data-index="${index}">
                 <span class="autocomplete-item-name">
                     ${this.highlightMatch(food.name, query)}
                     ${food.source === 'api' ? '<span class="api-badge">API</span>' : ''}
+                    ${food.source === 'custom' ? '<span class="custom-badge">Saya</span>' : ''}
                 </span>
                 <div class="autocomplete-item-info">
                     <span class="autocomplete-item-calories">${food.calories} kcal</span>
                     <span class="autocomplete-item-portion">${food.portion}</span>
                 </div>
+                ${food.source === 'custom' ? `<button class="delete-custom-food" data-name="${this.escapeHtml(food.name)}" title="Hapus dari daftar saya">&times;</button>` : ''}
             </li>
         `).join('');
 
+        // Bind click events for selecting items
         suggestions.querySelectorAll('.autocomplete-item').forEach(item => {
-            item.addEventListener('click', () => {
+            item.addEventListener('click', (e) => {
+                // Don't select if clicking delete button
+                if (e.target.classList.contains('delete-custom-food')) return;
                 this.selectAutocompleteItem(parseInt(item.dataset.index));
+            });
+        });
+
+        // Bind delete button events for custom foods
+        suggestions.querySelectorAll('.delete-custom-food').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const foodName = btn.dataset.name;
+                
+                const confirmed = await this.showConfirm({
+                    title: 'Hapus Makanan?',
+                    message: `"${foodName}" akan dihapus dari daftar makanan Anda dan tidak akan muncul di saran lagi.`,
+                    confirmText: 'Hapus',
+                    cancelText: 'Batal',
+                    type: 'warning'
+                });
+
+                if (confirmed) {
+                    Storage.deleteCustomFood(foodName);
+                    this.showToast(`"${foodName}" dihapus dari daftar Anda`, 'success');
+                    // Refresh suggestions
+                    this.handleAutocompleteSearch(this.elements.foodNameInput.value);
+                }
             });
         });
 
@@ -466,7 +521,13 @@ const App = {
      * Check daily reset
      */
     checkDailyReset() {
-        Storage.checkAndResetDaily();
+        const wasReset = Storage.checkAndResetDaily();
+        if (wasReset) {
+            // Show notification that a new day has started
+            setTimeout(() => {
+                this.showToast('Hari baru dimulai! Data kemarin sudah disimpan ke riwayat.', 'info');
+            }, 500);
+        }
     },
 
     /**
@@ -682,7 +743,13 @@ const App = {
      * Dashboard
      */
     updateCurrentDate() {
-        const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+        const options = { 
+            timeZone: 'Asia/Jakarta',
+            weekday: 'long', 
+            day: 'numeric', 
+            month: 'long', 
+            year: 'numeric' 
+        };
         this.elements.currentDate.textContent = new Date().toLocaleDateString('id-ID', options);
     },
 
@@ -767,7 +834,25 @@ const App = {
             return;
         }
 
+        // Add food to daily list
         Storage.addFood({ name, calories });
+        
+        // Check if this food is from our database or custom
+        const isInDatabase = FoodsDB.search(name, 1).some(f => f.name.toLowerCase() === name.toLowerCase());
+        const isCustomFood = Storage.getCustomFood(name);
+        
+        // If not in database, save as custom food for future suggestions
+        if (!isInDatabase) {
+            Storage.saveCustomFood({ name, calories });
+            if (!isCustomFood) {
+                this.showToast(`"${name}" ditambahkan ke makanan Anda`, 'success');
+            } else {
+                this.showToast(`"${name}" berhasil dicatat`, 'success');
+            }
+        } else {
+            this.showToast(`"${name}" berhasil dicatat`, 'success');
+        }
+        
         this.elements.foodNameInput.value = '';
         this.elements.foodCaloriesInput.value = '';
         this.elements.foodHint.textContent = '';
@@ -776,7 +861,7 @@ const App = {
 
         this.loadFoods();
         this.updateDashboard();
-        this.loadHistory(); // Update riwayat kalori otomatis
+        this.loadHistory();
     },
 
     loadFoods() {

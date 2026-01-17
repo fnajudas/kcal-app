@@ -48,6 +48,12 @@ const FoodsDB = {
         { name: "Rendang Ayam", calories: 350, portion: "1 potong", price: 20000 },
         { name: "Chicken Nugget", calories: 280, portion: "6 pcs", price: 20000 },
         { name: "Chicken Wings", calories: 350, portion: "6 pcs", price: 25000 },
+        { name: "Ceker Ayam", calories: 110, portion: "3 buah (50g)", price: 8000 },
+        { name: "Kulit Ayam Goreng", calories: 225, portion: "1 porsi (50g)", price: 10000 },
+        { name: "Ati Ampela", calories: 145, portion: "1 porsi (100g)", price: 12000 },
+        { name: "Ati Ayam", calories: 120, portion: "3 buah", price: 8000 },
+        { name: "Ampela Ayam", calories: 145, portion: "3 buah", price: 8000 },
+        { name: "Usus Ayam", calories: 130, portion: "5 tusuk", price: 10000 },
 
         // === DAGING SAPI ===
         { name: "Rendang Sapi", calories: 400, portion: "1 potong", price: 25000 },
@@ -61,6 +67,9 @@ const FoodsDB = {
         { name: "Sop Buntut", calories: 450, portion: "1 mangkuk", price: 65000 },
         { name: "Steak Sapi", calories: 500, portion: "200g", price: 85000 },
         { name: "Burger", calories: 450, portion: "1 buah", price: 35000 },
+        { name: "Paru Goreng", calories: 275, portion: "1 porsi (100g)", price: 15000 },
+        { name: "Paru Balado", calories: 300, portion: "1 porsi", price: 18000 },
+        { name: "Babat Goreng", calories: 180, portion: "1 porsi (100g)", price: 15000 },
 
         // === SEAFOOD ===
         { name: "Ikan Goreng", calories: 200, portion: "1 ekor sedang", price: 20000 },
@@ -81,6 +90,9 @@ const FoodsDB = {
         { name: "Telur Rebus", calories: 75, portion: "1 butir", price: 3000 },
         { name: "Telur Ceplok", calories: 110, portion: "1 butir", price: 5000 },
         { name: "Telur Balado", calories: 180, portion: "2 butir", price: 10000 },
+        { name: "Telur Puyuh", calories: 14, portion: "1 butir", price: 1000 },
+        { name: "Telur Puyuh Goreng", calories: 70, portion: "5 butir", price: 5000 },
+        { name: "Telur Puyuh Balado", calories: 100, portion: "5 butir", price: 8000 },
         { name: "Omelette", calories: 200, portion: "1 porsi", price: 15000 },
         { name: "Scrambled Egg", calories: 180, portion: "2 butir", price: 15000 },
 
@@ -121,11 +133,18 @@ const FoodsDB = {
         { name: "Pisang Goreng", calories: 130, portion: "2 buah", price: 5000 },
         { name: "Keripik", calories: 150, portion: "1 bungkus kecil", price: 10000 },
         { name: "Krupuk", calories: 100, portion: "5 keping", price: 3000 },
+        { name: "Kerupuk Udang", calories: 120, portion: "5 keping (25g)", price: 5000 },
+        { name: "Kerupuk Kulit", calories: 210, portion: "1 porsi (50g)", price: 8000 },
+        { name: "Kerupuk Kulit Sapi", calories: 210, portion: "1 porsi (50g)", price: 10000 },
         { name: "Cireng", calories: 150, portion: "5 buah", price: 10000 },
         { name: "Cilok", calories: 180, portion: "10 buah", price: 10000 },
         { name: "Siomay", calories: 250, portion: "1 porsi", price: 15000 },
         { name: "Batagor", calories: 280, portion: "1 porsi", price: 15000 },
         { name: "Dimsum", calories: 200, portion: "4 pcs", price: 25000 },
+        { name: "Seblak", calories: 350, portion: "1 porsi", price: 15000 },
+        { name: "Seblak Kerupuk", calories: 230, portion: "1 porsi (50g)", price: 12000 },
+        { name: "Ketoprak", calories: 450, portion: "1 porsi", price: 15000 },
+        { name: "Bumbu Kacang", calories: 80, portion: "2 sdm (30g)", price: 3000 },
 
         // === SOTO & SOP ===
         { name: "Soto Ayam", calories: 350, portion: "1 mangkuk", price: 18000 },

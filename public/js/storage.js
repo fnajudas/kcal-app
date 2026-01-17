@@ -16,7 +16,8 @@ const Storage = {
         WATER_LAST_DATE: 'kcal_water_last_date',
         BODY_MEASUREMENTS: 'kcal_body_measurements',
         MEAL_TEMPLATES: 'kcal_meal_templates',
-        CUSTOM_PRICES: 'kcal_custom_prices'
+        CUSTOM_PRICES: 'kcal_custom_prices',
+        CUSTOM_FOODS: 'kcal_custom_foods'
     },
 
     // ==================== PROFILE ====================
@@ -96,7 +97,7 @@ const Storage = {
     addFood(food) {
         const foods = this.getFoods();
         food.id = Date.now();
-        food.timestamp = new Date().toISOString();
+        food.timestamp = this.getIndonesiaDateTime();
         food.date = this.getTodayDate();
         foods.push(food);
         return this.saveFoods(foods);
@@ -176,25 +177,28 @@ const Storage = {
      */
     getCalorieHistory(days = 7) {
         const history = [];
-        const today = new Date();
+        const todayStr = this.getTodayDate();
         
         for (let i = days - 1; i >= 0; i--) {
-            const date = new Date(today);
-            date.setDate(date.getDate() - i);
-            const dateStr = date.toISOString().split('T')[0];
+            // Get date in Indonesia timezone
+            const dateObj = this.getIndonesiaDateOffset(-i);
+            const dateStr = this.getIndonesiaDate(dateObj);
             
             // For today, use current foods; for past days, use history
             let calories;
-            if (dateStr === this.getTodayDate()) {
+            if (dateStr === todayStr) {
                 calories = this.getTotalCalories();
             } else {
                 calories = this.getCaloriesByDate(dateStr);
             }
             
+            // Get day name in Indonesian
+            const dayName = dateObj.toLocaleDateString('id-ID', { weekday: 'short' });
+            
             history.push({
                 date: dateStr,
                 calories: calories,
-                dayName: date.toLocaleDateString('id-ID', { weekday: 'short' })
+                dayName: dayName
             });
         }
         
@@ -230,7 +234,7 @@ const Storage = {
         const entry = {
             date: today,
             weight: parseFloat(weight),
-            timestamp: new Date().toISOString()
+            timestamp: this.getIndonesiaDateTime()
         };
         
         if (existingIndex >= 0) {
@@ -360,7 +364,7 @@ const Storage = {
         
         const entry = {
             date: today,
-            timestamp: new Date().toISOString(),
+            timestamp: this.getIndonesiaDateTime(),
             ...measurements
         };
         
@@ -425,7 +429,7 @@ const Storage = {
         const templates = this.getMealTemplates();
         
         template.id = template.id || Date.now();
-        template.createdAt = template.createdAt || new Date().toISOString();
+        template.createdAt = template.createdAt || this.getIndonesiaDateTime();
         template.totalCalories = template.foods.reduce((sum, f) => sum + f.calories, 0);
         
         // Check if updating existing
@@ -535,10 +539,178 @@ const Storage = {
         return customPrice !== null ? customPrice : defaultPrice;
     },
 
+    // ==================== CUSTOM FOODS (User-added) ====================
+
+    /**
+     * Get all custom foods added by user
+     * @returns {Array} Array of custom foods [{ name, calories, portion, addedAt, usageCount }, ...]
+     */
+    getCustomFoods() {
+        try {
+            const data = localStorage.getItem(this.KEYS.CUSTOM_FOODS);
+            return data ? JSON.parse(data) : [];
+        } catch (error) {
+            console.error('Error getting custom foods:', error);
+            return [];
+        }
+    },
+
+    /**
+     * Save a custom food (user manually added)
+     * Updates usage count if food already exists
+     * @param {Object} food - { name, calories, portion? }
+     */
+    saveCustomFood(food) {
+        const foods = this.getCustomFoods();
+        const normalizedName = food.name.toLowerCase().trim();
+        
+        // Check if food already exists
+        const existingIndex = foods.findIndex(f => f.name.toLowerCase() === normalizedName);
+        
+        if (existingIndex >= 0) {
+            // Update existing food's usage count and calories
+            foods[existingIndex].usageCount = (foods[existingIndex].usageCount || 1) + 1;
+            foods[existingIndex].calories = food.calories; // Update with latest calories
+            foods[existingIndex].lastUsed = this.getIndonesiaDateTime();
+        } else {
+            // Add new custom food
+            foods.push({
+                name: food.name.trim(),
+                calories: food.calories,
+                portion: food.portion || '1 porsi',
+                addedAt: this.getIndonesiaDateTime(),
+                lastUsed: this.getIndonesiaDateTime(),
+                usageCount: 1,
+                source: 'custom'
+            });
+        }
+        
+        try {
+            localStorage.setItem(this.KEYS.CUSTOM_FOODS, JSON.stringify(foods));
+            return true;
+        } catch (error) {
+            console.error('Error saving custom food:', error);
+            return false;
+        }
+    },
+
+    /**
+     * Search custom foods by query
+     * @param {string} query - Search query
+     * @param {number} limit - Max results
+     * @returns {Array} Matching custom foods
+     */
+    searchCustomFoods(query, limit = 5) {
+        if (!query || query.length < 2) {
+            return [];
+        }
+
+        const normalizedQuery = query.toLowerCase().trim();
+        const foods = this.getCustomFoods();
+        
+        // Score-based search
+        const scored = foods.map(food => {
+            const name = food.name.toLowerCase();
+            let score = 0;
+
+            // Exact match
+            if (name === normalizedQuery) {
+                score = 100;
+            }
+            // Starts with query
+            else if (name.startsWith(normalizedQuery)) {
+                score = 80;
+            }
+            // Contains query
+            else if (name.includes(normalizedQuery)) {
+                score = 50;
+            }
+
+            // Boost by usage count
+            score += Math.min((food.usageCount || 1) * 2, 20);
+
+            return { food: { ...food, source: 'custom' }, score };
+        });
+
+        return scored
+            .filter(item => item.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, limit)
+            .map(item => item.food);
+    },
+
+    /**
+     * Delete a custom food
+     * @param {string} foodName - Food name to delete
+     */
+    deleteCustomFood(foodName) {
+        const foods = this.getCustomFoods();
+        const filtered = foods.filter(f => f.name.toLowerCase() !== foodName.toLowerCase());
+        localStorage.setItem(this.KEYS.CUSTOM_FOODS, JSON.stringify(filtered));
+    },
+
+    /**
+     * Check if a food name exists in custom foods
+     * @param {string} foodName - Food name
+     * @returns {Object|null} Custom food if exists
+     */
+    getCustomFood(foodName) {
+        const foods = this.getCustomFoods();
+        return foods.find(f => f.name.toLowerCase() === foodName.toLowerCase().trim()) || null;
+    },
+
+    // ==================== TIMEZONE HELPERS ====================
+    
+    /**
+     * Get current date in Indonesia timezone (WIB - Asia/Jakarta)
+     * Returns format: YYYY-MM-DD
+     */
+    getIndonesiaDate(date = new Date()) {
+        const options = { 
+            timeZone: 'Asia/Jakarta', 
+            year: 'numeric', 
+            month: '2-digit', 
+            day: '2-digit' 
+        };
+        // Use sv-SE locale for YYYY-MM-DD format
+        const formatter = new Intl.DateTimeFormat('sv-SE', options);
+        return formatter.format(date);
+    },
+
+    /**
+     * Get current datetime in Indonesia timezone
+     * Returns ISO-like string with Indonesia time
+     */
+    getIndonesiaDateTime(date = new Date()) {
+        const options = {
+            timeZone: 'Asia/Jakarta',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        };
+        return date.toLocaleString('sv-SE', options).replace(' ', 'T');
+    },
+
+    /**
+     * Get a Date object representing a specific day in Indonesia timezone
+     * @param {number} daysOffset - Number of days to offset (negative for past)
+     */
+    getIndonesiaDateOffset(daysOffset = 0) {
+        // Get current time in Indonesia
+        const now = new Date();
+        const indonesiaTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
+        indonesiaTime.setDate(indonesiaTime.getDate() + daysOffset);
+        return indonesiaTime;
+    },
+
     // ==================== DAILY RESET ====================
     
     getTodayDate() {
-        return new Date().toISOString().split('T')[0];
+        return this.getIndonesiaDate();
     },
 
     getLastDate() {
