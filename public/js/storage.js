@@ -17,7 +17,9 @@ const Storage = {
         BODY_MEASUREMENTS: 'kcal_body_measurements',
         MEAL_TEMPLATES: 'kcal_meal_templates',
         CUSTOM_PRICES: 'kcal_custom_prices',
-        CUSTOM_FOODS: 'kcal_custom_foods'
+        CUSTOM_FOODS: 'kcal_custom_foods',
+        THEME_MODE: 'kcal_theme_mode',
+        THEME_AUTO: 'kcal_theme_auto'
     },
 
     // ==================== PROFILE ====================
@@ -701,6 +703,54 @@ const Storage = {
         return foods.find(f => f.name.toLowerCase() === foodName.toLowerCase().trim()) || null;
     },
 
+    /**
+     * Save custom food with barcode
+     * @param {Object} food - { name, calories, portion, barcode, brand }
+     */
+    saveCustomFoodWithBarcode(food) {
+        const foods = this.getCustomFoods();
+        
+        // Check if barcode already exists
+        const existingIndex = foods.findIndex(f => f.barcode === food.barcode);
+        
+        if (existingIndex >= 0) {
+            // Update existing
+            foods[existingIndex] = {
+                ...foods[existingIndex],
+                ...food,
+                usageCount: (foods[existingIndex].usageCount || 1) + 1,
+                lastUsed: this.getIndonesiaDateTime()
+            };
+        } else {
+            // Add new
+            foods.push({
+                ...food,
+                addedAt: this.getIndonesiaDateTime(),
+                lastUsed: this.getIndonesiaDateTime(),
+                usageCount: 1,
+                source: 'barcode'
+            });
+        }
+        
+        try {
+            localStorage.setItem(this.KEYS.CUSTOM_FOODS, JSON.stringify(foods));
+            return true;
+        } catch (error) {
+            console.error('Error saving barcode food:', error);
+            return false;
+        }
+    },
+
+    /**
+     * Get custom food by barcode
+     * @param {string} barcode - Barcode number
+     * @returns {Object|null} Custom food if exists
+     */
+    getCustomFoodByBarcode(barcode) {
+        const foods = this.getCustomFoods();
+        return foods.find(f => f.barcode === barcode) || null;
+    },
+
     // ==================== TIMEZONE HELPERS ====================
     
     /**
@@ -788,6 +838,41 @@ const Storage = {
         }
         
         return false;
+    },
+
+    // ==================== THEME MANAGEMENT ====================
+    
+    /**
+     * Get theme mode (light/dark)
+     * @returns {string} 'light' or 'dark'
+     */
+    getThemeMode() {
+        return localStorage.getItem(this.KEYS.THEME_MODE) || 'light';
+    },
+
+    /**
+     * Set theme mode
+     * @param {string} mode - 'light' or 'dark'
+     */
+    setThemeMode(mode) {
+        localStorage.setItem(this.KEYS.THEME_MODE, mode);
+    },
+
+    /**
+     * Check if theme auto-switch is enabled
+     * @returns {boolean}
+     */
+    isThemeAuto() {
+        const value = localStorage.getItem(this.KEYS.THEME_AUTO);
+        return value === null ? true : value === 'true'; // Default to true
+    },
+
+    /**
+     * Set theme auto-switch
+     * @param {boolean} auto
+     */
+    setThemeAuto(auto) {
+        localStorage.setItem(this.KEYS.THEME_AUTO, auto.toString());
     },
 
     // ==================== CLEAR ALL ====================

@@ -28,6 +28,24 @@
     <div class="container">
         <!-- Header -->
         <header class="header">
+            <div class="header-top">
+                <button id="theme-toggle" class="btn-icon theme-toggle" title="Toggle Dark Mode">
+                    <svg id="theme-icon-sun" class="theme-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                    <svg id="theme-icon-moon" class="theme-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                </button>
+            </div>
             <h1>Kcal Calculator</h1>
             <p class="subtitle">Hitung BMI & Kebutuhan Kalori Harianmu</p>
         </header>
@@ -419,6 +437,83 @@
             </div>
         </section>
 
+        <!-- Barcode Scanner Section -->
+        <section id="scanner-section" class="card" style="display: none;">
+            <div class="card-header">
+                <h2>Scan Barcode</h2>
+                <span class="scanner-badge">Beta</span>
+            </div>
+            <p class="section-description">Scan barcode produk makanan untuk otomatis input kalori</p>
+
+            <div id="scanner-controls">
+                <button id="start-scanner-btn" class="btn btn-primary">
+                    📷 Buka Scanner
+                </button>
+            </div>
+
+            <div id="scanner-container" class="scanner-container" style="display: none;">
+                <div id="scanner-reader" class="scanner-reader"></div>
+                <div class="scanner-info">
+                    <p>Arahkan kamera ke barcode produk</p>
+                    <p class="text-muted">Mendukung barcode EAN-13, UPC, dan lainnya</p>
+                </div>
+                <button id="close-scanner-btn" class="btn btn-secondary">
+                    Tutup Scanner
+                </button>
+            </div>
+
+            <!-- Scanner result preview -->
+            <div id="scanner-result" class="scanner-result" style="display: none;">
+                <h3>Produk Ditemukan</h3>
+                <div class="product-preview">
+                    <div class="product-info">
+                        <h4 id="product-name" class="product-name">-</h4>
+                        <p id="product-brand" class="product-brand">-</p>
+                    </div>
+                    <div class="product-nutrition">
+                        <div class="nutrition-item">
+                            <span class="nutrition-label">Kalori</span>
+                            <span id="product-calories" class="nutrition-value">-</span>
+                        </div>
+                        <div class="nutrition-item">
+                            <span class="nutrition-label">Per</span>
+                            <span id="product-portion" class="nutrition-value">100g</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="scanner-actions">
+                    <button id="add-scanned-food" class="btn btn-success">
+                        ✓ Tambah ke Makanan Hari Ini
+                    </button>
+                    <button id="cancel-scanned" class="btn btn-secondary">
+                        Batal
+                    </button>
+                </div>
+            </div>
+
+            <!-- Manual input fallback -->
+            <div id="manual-input-container" class="manual-input" style="display: none;">
+                <h3>Produk Tidak Ditemukan</h3>
+                <p class="text-muted">Tambahkan informasi produk secara manual</p>
+                <div class="form-group">
+                    <label for="manual-product-name">Nama Produk</label>
+                    <input type="text" id="manual-product-name" placeholder="Nama produk..." readonly>
+                </div>
+                <div class="form-group">
+                    <label for="manual-product-calories">Kalori (per 100g)</label>
+                    <input type="number" id="manual-product-calories" placeholder="Contoh: 250">
+                </div>
+                <div class="scanner-actions">
+                    <button id="save-manual-product" class="btn btn-success">
+                        Simpan & Tambahkan
+                    </button>
+                    <button id="cancel-manual" class="btn btn-secondary">
+                        Batal
+                    </button>
+                </div>
+            </div>
+        </section>
+
         <!-- Weight Progress Section -->
         <section id="weight-section" class="card" style="display: none;">
             <h2>Progress Berat Badan</h2>
@@ -639,6 +734,7 @@
     </div>
 
     <!-- Scripts -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script src="js/foods-db.js"></script>
     <script src="js/calorie-api.js"></script>
     <script src="js/storage.js"></script>

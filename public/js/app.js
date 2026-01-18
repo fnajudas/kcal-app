@@ -22,6 +22,11 @@ const App = {
         generator: {
             results: [],
             selected: new Set()
+        },
+        scanner: {
+            html5QrCode: null,
+            isScanning: false,
+            scannedProduct: null
         }
     },
 
@@ -30,6 +35,7 @@ const App = {
      */
     init() {
         this.cacheElements();
+        this.initTheme();
         this.bindEvents();
         this.checkDailyReset();
         this.loadSavedData();
@@ -189,6 +195,30 @@ const App = {
             confirmCancel: document.getElementById('confirm-cancel'),
             confirmOk: document.getElementById('confirm-ok'),
 
+            // Theme
+            themeToggle: document.getElementById('theme-toggle'),
+            themeIconSun: document.getElementById('theme-icon-sun'),
+            themeIconMoon: document.getElementById('theme-icon-moon'),
+
+            // Barcode Scanner
+            scannerSection: document.getElementById('scanner-section'),
+            startScannerBtn: document.getElementById('start-scanner-btn'),
+            closeScannerBtn: document.getElementById('close-scanner-btn'),
+            scannerContainer: document.getElementById('scanner-container'),
+            scannerReader: document.getElementById('scanner-reader'),
+            scannerResult: document.getElementById('scanner-result'),
+            productName: document.getElementById('product-name'),
+            productBrand: document.getElementById('product-brand'),
+            productCalories: document.getElementById('product-calories'),
+            productPortion: document.getElementById('product-portion'),
+            addScannedFood: document.getElementById('add-scanned-food'),
+            cancelScanned: document.getElementById('cancel-scanned'),
+            manualInputContainer: document.getElementById('manual-input-container'),
+            manualProductName: document.getElementById('manual-product-name'),
+            manualProductCalories: document.getElementById('manual-product-calories'),
+            saveManualProduct: document.getElementById('save-manual-product'),
+            cancelManual: document.getElementById('cancel-manual'),
+
             // Settings
             settingsToggle: document.getElementById('settings-toggle'),
             settingsContent: document.getElementById('settings-content'),
@@ -204,6 +234,9 @@ const App = {
      * Bind event listeners
      */
     bindEvents() {
+        // Theme Toggle
+        this.elements.themeToggle.addEventListener('click', () => this.toggleTheme());
+
         // Profile
         this.elements.profileForm.addEventListener('submit', (e) => {
             e.preventDefault();
@@ -251,6 +284,9 @@ const App = {
 
         // Generator
         this.bindGeneratorEvents();
+
+        // Scanner
+        this.bindScannerEvents();
 
         // Settings
         this.bindSettingsEvents();
@@ -364,11 +400,11 @@ const App = {
         // 1. Search all sources and combine by relevance
         let customResults = Storage.searchCustomFoodsWithScore(query, 10);
         let localResults = FoodsDB.searchWithScore(query, 10);
-        
+
         // Merge results, avoiding duplicates (prefer custom if same name)
         const seenNames = new Set();
         let allResults = [];
-        
+
         // Combine all results with scores
         [...customResults, ...localResults].forEach(item => {
             const nameLower = item.food.name.toLowerCase();
@@ -377,7 +413,7 @@ const App = {
                 allResults.push(item);
             }
         });
-        
+
         // Sort by score (highest first) and take top 8
         allResults.sort((a, b) => b.score - a.score);
         let results = allResults.slice(0, 8).map(item => item.food);
@@ -435,7 +471,7 @@ const App = {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 const foodName = btn.dataset.name;
-                
+
                 const confirmed = await this.showConfirm({
                     title: 'Hapus Makanan?',
                     message: `"${foodName}" akan dihapus dari daftar makanan Anda dan tidak akan muncul di saran lagi.`,
@@ -581,6 +617,7 @@ const App = {
         this.elements.dashboardSection.style.display = 'block';
         this.elements.foodSection.style.display = 'block';
         this.elements.generatorSection.style.display = 'block';
+        this.elements.scannerSection.style.display = 'block';
         this.elements.weightSection.style.display = 'block';
         this.elements.measurementsSection.style.display = 'block';
         this.elements.historySection.style.display = 'block';
@@ -751,12 +788,12 @@ const App = {
      * Dashboard
      */
     updateCurrentDate() {
-        const options = { 
+        const options = {
             timeZone: 'Asia/Jakarta',
-            weekday: 'long', 
-            day: 'numeric', 
-            month: 'long', 
-            year: 'numeric' 
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
         };
         this.elements.currentDate.textContent = new Date().toLocaleDateString('id-ID', options);
     },
@@ -844,11 +881,11 @@ const App = {
 
         // Add food to daily list
         Storage.addFood({ name, calories });
-        
+
         // Check if this food is from our database or custom
         const isInDatabase = FoodsDB.search(name, 1).some(f => f.name.toLowerCase() === name.toLowerCase());
         const isCustomFood = Storage.getCustomFood(name);
-        
+
         // If not in database, save as custom food for future suggestions
         if (!isInDatabase) {
             Storage.saveCustomFood({ name, calories });
@@ -860,7 +897,7 @@ const App = {
         } else {
             this.showToast(`"${name}" berhasil dicatat`, 'success');
         }
-        
+
         this.elements.foodNameInput.value = '';
         this.elements.foodCaloriesInput.value = '';
         this.elements.foodHint.textContent = '';
@@ -1202,6 +1239,333 @@ const App = {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    },
+
+    // ==================== THEME ====================
+
+    /**
+     * Initialize theme on app load
+     */
+    initTheme() {
+        const isAuto = Storage.isThemeAuto();
+
+        if (isAuto) {
+            this.applyAutoTheme();
+            // Check every 30 minutes for time-based switching
+            setInterval(() => this.applyAutoTheme(), 30 * 60 * 1000);
+        } else {
+            const savedTheme = Storage.getThemeMode();
+            this.applyTheme(savedTheme);
+        }
+    },
+
+    /**
+     * Apply theme based on time (auto mode)
+     * Dark mode: 18:00 - 06:00 (6 PM - 6 AM)
+     */
+    applyAutoTheme() {
+        const options = { timeZone: 'Asia/Jakarta', hour: 'numeric', hour12: false };
+        const hour = parseInt(new Date().toLocaleString('en-US', options).split(',')[1]);
+        const theme = (hour >= 18 || hour < 6) ? 'dark' : 'light';
+        this.applyTheme(theme);
+    },
+
+    /**
+     * Apply theme to document
+     * @param {string} theme - 'light' or 'dark'
+     */
+    applyTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+
+        // Update icons
+        if (theme === 'dark') {
+            this.elements.themeIconSun.style.display = 'none';
+            this.elements.themeIconMoon.style.display = 'block';
+        } else {
+            this.elements.themeIconSun.style.display = 'block';
+            this.elements.themeIconMoon.style.display = 'none';
+        }
+
+        // Update meta theme-color for mobile browsers
+        document.querySelector('meta[name="theme-color"]').setAttribute(
+            'content',
+            theme === 'dark' ? '#1e293b' : '#2ecc71'
+        );
+    },
+
+    /**
+     * Toggle theme manually
+     */
+    toggleTheme() {
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+
+        // Disable auto mode when manually toggling
+        Storage.setThemeAuto(false);
+        Storage.setThemeMode(newTheme);
+        this.applyTheme(newTheme);
+
+        this.showToast(
+            `Mode ${newTheme === 'dark' ? 'gelap' : 'terang'} aktif`,
+            'info'
+        );
+    },
+
+    // ==================== BARCODE SCANNER ====================
+
+    /**
+     * Bind scanner events
+     */
+    bindScannerEvents() {
+        this.elements.startScannerBtn?.addEventListener('click', () => this.startBarcodeScanner());
+        this.elements.closeScannerBtn?.addEventListener('click', () => this.stopBarcodeScanner());
+        this.elements.addScannedFood?.addEventListener('click', () => this.addScannedFoodToDaily());
+        this.elements.cancelScanned?.addEventListener('click', () => this.cancelScanResult());
+        this.elements.saveManualProduct?.addEventListener('click', () => this.saveManualProduct());
+        this.elements.cancelManual?.addEventListener('click', () => this.cancelManualInput());
+    },
+
+    /**
+     * Start barcode scanner
+     */
+    async startBarcodeScanner() {
+        try {
+            // Check if camera is available
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const hasCamera = devices.some(device => device.kind === 'videoinput');
+
+            if (!hasCamera) {
+                this.showToast('Kamera tidak ditemukan', 'error');
+                return;
+            }
+
+            // Show scanner container
+            this.elements.scannerContainer.style.display = 'block';
+            this.elements.startScannerBtn.style.display = 'none';
+            this.elements.scannerResult.style.display = 'none';
+            this.elements.manualInputContainer.style.display = 'none';
+
+            // Initialize Html5QrcodeScanner
+            const html5QrCode = new Html5Qrcode("scanner-reader");
+            this.state.scanner.html5QrCode = html5QrCode;
+            this.state.scanner.isScanning = true;
+
+            // Start scanning with barcode support
+            await html5QrCode.start(
+                { facingMode: "environment" }, // Back camera
+                {
+                    fps: 10,
+                    qrbox: { width: 250, height: 150 },
+                    formatsToSupport: [
+                        Html5QrcodeSupportedFormats.EAN_13,  // 0
+                        Html5QrcodeSupportedFormats.EAN_8,   // 1
+                        Html5QrcodeSupportedFormats.UPC_A,   // 3
+                        Html5QrcodeSupportedFormats.UPC_E,   // 4
+                        Html5QrcodeSupportedFormats.CODE_128, // 6
+                        Html5QrcodeSupportedFormats.CODE_39   // 7
+                    ]
+                },
+                (decodedText) => {
+                    // Success callback - stop scanner and process
+                    this.handleBarcodeScanned(decodedText);
+                },
+                (errorMessage) => {
+                    // Error callback (can be ignored, happens frequently during scanning)
+                }
+            ).catch((err) => {
+                console.error('Error starting scanner:', err);
+                this.showToast('Gagal memulai scanner', 'error');
+                this.stopBarcodeScanner();
+            });
+        } catch (error) {
+            console.error('Scanner error:', error);
+            this.showToast('Gagal membuka kamera: ' + error.message, 'error');
+            this.stopBarcodeScanner();
+        }
+    },
+
+    /**
+     * Stop barcode scanner
+     */
+    async stopBarcodeScanner() {
+        if (this.state.scanner.html5QrCode && this.state.scanner.isScanning) {
+            try {
+                await this.state.scanner.html5QrCode.stop();
+                this.state.scanner.html5QrCode.clear();
+            } catch (error) {
+                console.error('Error stopping scanner:', error);
+            }
+        }
+
+        this.state.scanner.html5QrCode = null;
+        this.state.scanner.isScanning = false;
+        this.elements.scannerContainer.style.display = 'none';
+        this.elements.startScannerBtn.style.display = 'block';
+    },
+
+    /**
+     * Handle barcode scanned
+     */
+    async handleBarcodeScanned(barcode) {
+        // Stop scanner
+        await this.stopBarcodeScanner();
+
+        // Check if already in custom foods
+        const customFood = Storage.getCustomFoodByBarcode(barcode);
+        if (customFood) {
+            this.showScannedProduct(customFood, barcode);
+            return;
+        }
+
+        // Show loading
+        this.showToast('Mencari produk...', 'info');
+
+        // Search OpenFoodFacts API
+        try {
+            const response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
+            const data = await response.json();
+
+            if (data.status === 1 && data.product) {
+                const product = data.product;
+
+                // Extract nutrition info
+                const calories = Math.round(
+                    product.nutriments['energy-kcal_100g'] ||
+                    product.nutriments['energy_100g'] / 4.184 ||
+                    0
+                );
+
+                if (calories === 0) {
+                    throw new Error('Kalori tidak ditemukan');
+                }
+
+                const food = {
+                    name: product.product_name || 'Produk Tidak Dikenal',
+                    calories: calories,
+                    portion: '100g',
+                    brand: product.brands || '',
+                    barcode: barcode,
+                    source: 'barcode'
+                };
+
+                // Save to custom foods
+                Storage.saveCustomFoodWithBarcode(food);
+
+                // Show product
+                this.showScannedProduct(food, barcode);
+            } else {
+                // Product not found in API
+                this.showManualBarcodeInput(barcode);
+            }
+        } catch (error) {
+            console.error('API error:', error);
+            this.showManualBarcodeInput(barcode);
+        }
+    },
+
+    /**
+     * Show scanned product result
+     */
+    showScannedProduct(product, barcode) {
+        this.state.scanner.scannedProduct = { ...product, barcode };
+
+        this.elements.productName.textContent = product.name;
+        this.elements.productBrand.textContent = product.brand || 'Tidak diketahui';
+        this.elements.productCalories.textContent = product.calories;
+        this.elements.productPortion.textContent = product.portion || '100g';
+
+        this.elements.scannerResult.style.display = 'block';
+        this.elements.manualInputContainer.style.display = 'none';
+    },
+
+    /**
+     * Show manual input when product not found
+     */
+    showManualBarcodeInput(barcode) {
+        this.elements.manualProductName.value = `Produk ${barcode}`;
+        this.elements.manualProductCalories.value = '';
+        this.state.scanner.scannedProduct = { barcode };
+
+        this.elements.scannerResult.style.display = 'none';
+        this.elements.manualInputContainer.style.display = 'block';
+        this.elements.manualProductCalories.focus();
+
+        this.showToast('Produk tidak ditemukan, tambahkan manual', 'warning');
+    },
+
+    /**
+     * Add scanned food to daily list
+     */
+    addScannedFoodToDaily() {
+        const product = this.state.scanner.scannedProduct;
+        if (!product) return;
+
+        Storage.addFood({
+            name: product.name,
+            calories: product.calories
+        });
+
+        this.loadFoods();
+        this.updateDashboard();
+        this.loadHistory();
+
+        this.showToast(`"${product.name}" ditambahkan`, 'success');
+        this.cancelScanResult();
+    },
+
+    /**
+     * Cancel scan result
+     */
+    cancelScanResult() {
+        this.elements.scannerResult.style.display = 'none';
+        this.state.scanner.scannedProduct = null;
+        this.elements.startScannerBtn.style.display = 'block';
+    },
+
+    /**
+     * Save manual product
+     */
+    saveManualProduct() {
+        const name = this.elements.manualProductName.value.trim();
+        const calories = parseInt(this.elements.manualProductCalories.value);
+        const barcode = this.state.scanner.scannedProduct?.barcode;
+
+        if (!calories || calories < 1) {
+            this.showToast('Masukkan kalori yang valid', 'warning');
+            return;
+        }
+
+        const food = {
+            name: name,
+            calories: calories,
+            portion: '100g',
+            barcode: barcode,
+            source: 'barcode'
+        };
+
+        // Save to custom foods
+        if (barcode) {
+            Storage.saveCustomFoodWithBarcode(food);
+        }
+
+        // Add to daily
+        Storage.addFood({ name, calories });
+
+        this.loadFoods();
+        this.updateDashboard();
+        this.loadHistory();
+
+        this.showToast(`"${name}" disimpan dan ditambahkan`, 'success');
+        this.cancelManualInput();
+    },
+
+    /**
+     * Cancel manual input
+     */
+    cancelManualInput() {
+        this.elements.manualInputContainer.style.display = 'none';
+        this.state.scanner.scannedProduct = null;
+        this.elements.startScannerBtn.style.display = 'block';
     },
 
     // ==================== TOAST NOTIFICATION ====================

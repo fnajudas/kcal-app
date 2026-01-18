@@ -6,7 +6,7 @@
 // =====================================================
 // PENTING: Naikkan versi ini setiap kali ada update!
 // =====================================================
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.2.0'; // Major fix: Complete Dark Mode overhaul for readability
 const CACHE_NAME = `kcal-calculator-v${APP_VERSION}`;
 
 const STATIC_ASSETS = [
@@ -123,7 +123,7 @@ self.addEventListener('fetch', (event) => {
                                     cache.put(event.request, response);
                                 });
                             }
-                        }).catch(() => {});
+                        }).catch(() => { });
                         return cachedResponse;
                     }
 
@@ -151,7 +151,7 @@ self.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'SKIP_WAITING') {
         self.skipWaiting();
     }
-    
+
     if (event.data && event.data.type === 'GET_VERSION') {
         event.ports[0].postMessage({ version: APP_VERSION });
     }
