@@ -418,7 +418,25 @@ const App = {
         allResults.sort((a, b) => b.score - a.score);
         let results = allResults.slice(0, 8).map(item => item.food);
 
-        // 2. Search API if not enough results
+        // 2. Search OpenFoodFacts for Indonesian products first (if not enough results)
+        if (results.length < 5) {
+            hint.textContent = 'Mencari produk Indonesia...';
+            try {
+                const indonesianResults = await CalorieAPI.searchIndonesianFoods(query);
+                if (indonesianResults.length > 0) {
+                    const existingNames = results.map(r => r.name.toLowerCase());
+                    const uniqueIndonesianResults = indonesianResults.filter(r => !existingNames.includes(r.name.toLowerCase()));
+                    
+                    // Prioritize Indonesian products - add them at the beginning
+                    results = [...uniqueIndonesianResults, ...results].slice(0, 8);
+                    hint.textContent = `${results.length} ditemukan`;
+                }
+            } catch (error) {
+                console.error('OpenFoodFacts search error:', error);
+            }
+        }
+
+        // 3. Search CalorieNinjas API as fallback (if still not enough results)
         if (CalorieAPI.isConfigured() && results.length < 3) {
             hint.textContent = 'Mencari...';
             try {
@@ -426,6 +444,7 @@ const App = {
                 const existingNames = results.map(r => r.name.toLowerCase());
                 const uniqueApiResults = apiResults.filter(r => !existingNames.includes(r.name.toLowerCase()));
                 results = [...results, ...uniqueApiResults].slice(0, 8);
+                hint.textContent = `${results.length} ditemukan`;
             } catch (error) {
                 console.error('API error:', error);
             }
@@ -1420,45 +1439,94 @@ const App = {
         // Show loading
         this.showToast('Mencari produk...', 'info');
 
-        // Search OpenFoodFacts API
+        // Search OpenFoodFacts API with Indonesia country preference
         try {
-            const response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
-            const data = await response.json();
+            // Try Indonesia product first (country code: id)
+            let response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json?countries_tags_en=indonesia`);
+            let data = await response.json();
+            
+            // If not found in Indonesia, try general search
+            if (data.status !== 1 || !data.product) {
+                response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
+                data = await response.json();
+            }
+
+            console.log('OpenFoodFacts API Response:', data);
 
             if (data.status === 1 && data.product) {
                 const product = data.product;
+                const nutriments = product.nutriments || {};
 
-                // Extract nutrition info
-                const calories = Math.round(
-                    product.nutriments['energy-kcal_100g'] ||
-                    product.nutriments['energy_100g'] / 4.184 ||
-                    0
-                );
-
-                if (calories === 0) {
-                    throw new Error('Kalori tidak ditemukan');
+                // Extract nutrition info - try multiple formats
+                let calories = 0;
+                
+                // Try different calorie formats from OpenFoodFacts
+                if (nutriments['energy-kcal_100g']) {
+                    calories = Math.round(nutriments['energy-kcal_100g']);
+                } else if (nutriments['energy-kcal']) {
+                    calories = Math.round(nutriments['energy-kcal']);
+                } else if (nutriments['energy-kcal_value']) {
+                    calories = Math.round(nutriments['energy-kcal_value']);
+                } else if (nutriments['energy_100g']) {
+                    // Convert kJ to kcal (1 kcal = 4.184 kJ)
+                    calories = Math.round(nutriments['energy_100g'] / 4.184);
+                } else if (nutriments['energy']) {
+                    calories = Math.round(nutriments['energy'] / 4.184);
+                } else if (nutriments['energy-kcal_serving']) {
+                    // Per serving
+                    const servingSize = product.serving_size || 100;
+                    calories = Math.round((nutriments['energy-kcal_serving'] / servingSize) * 100);
+                } else if (nutriments['energy_serving']) {
+                    const servingSize = product.serving_size || 100;
+                    calories = Math.round((nutriments['energy_serving'] / 4.184 / servingSize) * 100);
                 }
 
-                const food = {
-                    name: product.product_name || 'Produk Tidak Dikenal',
-                    calories: calories,
-                    portion: '100g',
-                    brand: product.brands || '',
-                    barcode: barcode,
-                    source: 'barcode'
-                };
+                // Get product name
+                const productName = product.product_name || 
+                                   product.product_name_en || 
+                                   product.product_name_id ||
+                                   product.abbreviated_product_name ||
+                                   `Produk ${barcode}`;
 
-                // Save to custom foods
-                Storage.saveCustomFoodWithBarcode(food);
+                // Get brand
+                const brand = product.brands || 
+                             product.brand || 
+                             product.brands_tags?.[0] ||
+                             '';
 
-                // Show product
-                this.showScannedProduct(food, barcode);
+                // Get portion info
+                const servingSize = product.serving_size || 100;
+                const portion = servingSize === 100 ? '100g' : `${servingSize}g`;
+
+                // If calories found, show product with calories
+                if (calories > 0) {
+                    const food = {
+                        name: productName,
+                        calories: calories,
+                        portion: portion,
+                        brand: brand,
+                        barcode: barcode,
+                        source: 'barcode'
+                    };
+
+                    // Save to custom foods
+                    Storage.saveCustomFoodWithBarcode(food);
+
+                    // Show product
+                    this.showScannedProduct(food, barcode);
+                } else {
+                    // Product found but no calorie data - show with manual input option
+                    console.log('Product found but no calorie data:', product);
+                    this.showProductWithManualCalorie(productName, brand, barcode);
+                }
             } else {
                 // Product not found in API
+                console.log('Product not found in OpenFoodFacts:', barcode);
                 this.showManualBarcodeInput(barcode);
             }
         } catch (error) {
             console.error('API error:', error);
+            this.showToast('Gagal mengambil data produk: ' + error.message, 'error');
             this.showManualBarcodeInput(barcode);
         }
     },
@@ -1479,17 +1547,48 @@ const App = {
     },
 
     /**
-     * Show manual input when product not found
+     * Show product found but without calorie data - allow manual input
      */
-    showManualBarcodeInput(barcode) {
-        this.elements.manualProductName.value = `Produk ${barcode}`;
+    showProductWithManualCalorie(productName, brand, barcode) {
+        // Update title and description
+        const titleEl = document.getElementById('manual-input-title');
+        const descEl = document.getElementById('manual-input-description');
+        if (titleEl) titleEl.textContent = 'Produk Ditemukan';
+        if (descEl) descEl.textContent = 'Produk ditemukan tapi data kalori tidak tersedia. Silakan input kalori secara manual.';
+        
+        this.elements.manualProductName.value = productName;
         this.elements.manualProductCalories.value = '';
-        this.state.scanner.scannedProduct = { barcode };
-
+        this.state.scanner.scannedProduct = { 
+            name: productName,
+            brand: brand,
+            barcode: barcode 
+        };
+        
         this.elements.scannerResult.style.display = 'none';
         this.elements.manualInputContainer.style.display = 'block';
         this.elements.manualProductCalories.focus();
+        
+        this.showToast('Produk ditemukan tapi data kalori tidak tersedia. Silakan input manual.', 'info');
+    },
 
+    /**
+     * Show manual input when product not found
+     */
+    showManualBarcodeInput(barcode) {
+        // Update title and description
+        const titleEl = document.getElementById('manual-input-title');
+        const descEl = document.getElementById('manual-input-description');
+        if (titleEl) titleEl.textContent = 'Produk Tidak Ditemukan';
+        if (descEl) descEl.textContent = 'Tambahkan informasi produk secara manual';
+        
+        this.elements.manualProductName.value = `Produk ${barcode}`;
+        this.elements.manualProductCalories.value = '';
+        this.state.scanner.scannedProduct = { barcode };
+        
+        this.elements.scannerResult.style.display = 'none';
+        this.elements.manualInputContainer.style.display = 'block';
+        this.elements.manualProductCalories.focus();
+        
         this.showToast('Produk tidak ditemukan, tambahkan manual', 'warning');
     },
 
@@ -1528,7 +1627,13 @@ const App = {
     saveManualProduct() {
         const name = this.elements.manualProductName.value.trim();
         const calories = parseInt(this.elements.manualProductCalories.value);
-        const barcode = this.state.scanner.scannedProduct?.barcode;
+        const scannedProduct = this.state.scanner.scannedProduct;
+        const barcode = scannedProduct?.barcode;
+
+        if (!name) {
+            this.showToast('Masukkan nama produk', 'warning');
+            return;
+        }
 
         if (!calories || calories < 1) {
             this.showToast('Masukkan kalori yang valid', 'warning');
@@ -1539,6 +1644,7 @@ const App = {
             name: name,
             calories: calories,
             portion: '100g',
+            brand: scannedProduct?.brand || '',
             barcode: barcode,
             source: 'barcode'
         };
@@ -1546,15 +1652,18 @@ const App = {
         // Save to custom foods
         if (barcode) {
             Storage.saveCustomFoodWithBarcode(food);
+        } else {
+            // If no barcode, save as regular custom food
+            Storage.saveCustomFood(food);
         }
 
         // Add to daily
         Storage.addFood({ name, calories });
-
+        
         this.loadFoods();
         this.updateDashboard();
         this.loadHistory();
-
+        
         this.showToast(`"${name}" disimpan dan ditambahkan`, 'success');
         this.cancelManualInput();
     },

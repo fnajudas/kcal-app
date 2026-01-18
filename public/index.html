@@ -5,21 +5,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kcal Calculator - Hitung Kebutuhan Kalori Harianmu</title>
-    
+
     <!-- PWA Meta Tags -->
-    <meta name="description" content="Aplikasi kalkulator kalori harian untuk diet dan kesehatan. Hitung BMI, TDEE, dan track makanan harianmu.">
+    <meta name="description"
+        content="Aplikasi kalkulator kalori harian untuk diet dan kesehatan. Hitung BMI, TDEE, dan track makanan harianmu.">
     <meta name="theme-color" content="#2ecc71">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="KcalCalc">
-    
+
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json">
-    
+
     <!-- Icons -->
     <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
     <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
-    
+
     <!-- Stylesheet -->
     <link rel="stylesheet" href="css/style.css">
 </head>
@@ -30,7 +31,8 @@
         <header class="header">
             <div class="header-top">
                 <button id="theme-toggle" class="btn-icon theme-toggle" title="Toggle Dark Mode">
-                    <svg id="theme-icon-sun" class="theme-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg id="theme-icon-sun" class="theme-icon" xmlns="http://www.w3.org/2000/svg" width="20"
+                        height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="5"></circle>
                         <line x1="12" y1="1" x2="12" y2="3"></line>
                         <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -41,7 +43,9 @@
                         <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
                         <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
                     </svg>
-                    <svg id="theme-icon-moon" class="theme-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                    <svg id="theme-icon-moon" class="theme-icon" xmlns="http://www.w3.org/2000/svg" width="20"
+                        height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        style="display: none;">
                         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
                     </svg>
                 </button>
@@ -493,15 +497,15 @@
 
             <!-- Manual input fallback -->
             <div id="manual-input-container" class="manual-input" style="display: none;">
-                <h3>Produk Tidak Ditemukan</h3>
-                <p class="text-muted">Tambahkan informasi produk secara manual</p>
+                <h3 id="manual-input-title">Produk Tidak Ditemukan</h3>
+                <p class="text-muted" id="manual-input-description">Tambahkan informasi produk secara manual</p>
                 <div class="form-group">
                     <label for="manual-product-name">Nama Produk</label>
-                    <input type="text" id="manual-product-name" placeholder="Nama produk..." readonly>
+                    <input type="text" id="manual-product-name" placeholder="Nama produk...">
                 </div>
                 <div class="form-group">
                     <label for="manual-product-calories">Kalori (per 100g)</label>
-                    <input type="number" id="manual-product-calories" placeholder="Contoh: 250">
+                    <input type="number" id="manual-product-calories" placeholder="Contoh: 250" min="1">
                 </div>
                 <div class="scanner-actions">
                     <button id="save-manual-product" class="btn btn-success">
@@ -740,7 +744,7 @@
     <script src="js/storage.js"></script>
     <script src="js/calculator.js"></script>
     <script src="js/app.js"></script>
-    
+
     <!-- Service Worker Registration & Auto-Update -->
     <script>
         if ('serviceWorker' in navigator) {
@@ -748,17 +752,17 @@
                 navigator.serviceWorker.register('/sw.js')
                     .then((registration) => {
                         console.log('SW registered:', registration.scope);
-                        
+
                         // Check for updates every 5 minutes
                         setInterval(() => {
                             registration.update();
                         }, 5 * 60 * 1000);
-                        
+
                         // Listen for new service worker
                         registration.addEventListener('updatefound', () => {
                             const newWorker = registration.installing;
                             console.log('New SW found, installing...');
-                            
+
                             newWorker.addEventListener('statechange', () => {
                                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                                     // New version available
@@ -770,7 +774,7 @@
                     .catch((error) => {
                         console.log('SW registration failed:', error);
                     });
-                
+
                 // Listen for SW messages
                 navigator.serviceWorker.addEventListener('message', (event) => {
                     if (event.data.type === 'SW_UPDATED') {
@@ -779,7 +783,7 @@
                     }
                 });
             });
-            
+
             // Reload when SW takes control
             let refreshing = false;
             navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -789,7 +793,7 @@
                 }
             });
         }
-        
+
         function showUpdateNotification() {
             // Create update notification element
             const notification = document.createElement('div');
@@ -824,7 +828,7 @@
                     ">Update</button>
                 </div>
             `;
-            
+
             // Add animation style
             const style = document.createElement('style');
             style.textContent = `

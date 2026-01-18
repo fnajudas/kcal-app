@@ -6,7 +6,7 @@
 // =====================================================
 // PENTING: Naikkan versi ini setiap kali ada update!
 // =====================================================
-const APP_VERSION = '1.2.0'; // Major fix: Complete Dark Mode overhaul for readability
+const APP_VERSION = '1.3.0'; // Update: Added 100+ Indonesian foods + OpenFoodFacts Indonesia search
 const CACHE_NAME = `kcal-calculator-v${APP_VERSION}`;
 
 const STATIC_ASSETS = [

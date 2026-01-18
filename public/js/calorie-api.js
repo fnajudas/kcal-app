@@ -192,6 +192,67 @@ const CalorieAPI = {
      */
     clearCache() {
         this.cache.clear();
+    },
+
+    /**
+     * Search Indonesian foods in OpenFoodFacts by name
+     * @param {string} query - Food name to search
+     * @returns {Promise<Array>} Array of food items
+     */
+    async searchIndonesianFoods(query) {
+        try {
+            // Search OpenFoodFacts with Indonesia filter
+            const encodedQuery = encodeURIComponent(query);
+            const response = await fetch(
+                `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodedQuery}&countries_tags_en=indonesia&fields=code,product_name,brands,nutriments,serving_size&page_size=8&json=true`
+            );
+
+            if (!response.ok) {
+                console.error('OpenFoodFacts search error:', response.status);
+                return [];
+            }
+
+            const data = await response.json();
+            const products = data.products || [];
+
+            return products
+                .filter(product => {
+                    // Filter only products with calorie data
+                    const nutriments = product.nutriments || {};
+                    return nutriments['energy-kcal_100g'] || 
+                           nutriments['energy-kcal'] || 
+                           nutriments['energy_100g'];
+                })
+                .map(product => {
+                    const nutriments = product.nutriments || {};
+                    
+                    // Extract calories
+                    let calories = 0;
+                    if (nutriments['energy-kcal_100g']) {
+                        calories = Math.round(nutriments['energy-kcal_100g']);
+                    } else if (nutriments['energy-kcal']) {
+                        calories = Math.round(nutriments['energy-kcal']);
+                    } else if (nutriments['energy_100g']) {
+                        calories = Math.round(nutriments['energy_100g'] / 4.184);
+                    }
+
+                    const servingSize = product.serving_size || 100;
+                    const portion = servingSize === 100 ? '100g' : `${servingSize}g`;
+
+                    return {
+                        name: product.product_name || `Produk ${product.code}`,
+                        calories: calories,
+                        portion: portion,
+                        brand: product.brands || '',
+                        barcode: product.code,
+                        source: 'api'
+                    };
+                })
+                .filter(food => food.calories > 0);
+        } catch (error) {
+            console.error('OpenFoodFacts search error:', error);
+            return [];
+        }
     }
 };
 
