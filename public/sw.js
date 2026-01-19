@@ -6,7 +6,7 @@
 // =====================================================
 // PENTING: Naikkan versi ini setiap kali ada update!
 // =====================================================
-const APP_VERSION = '1.3.0'; // Update: Added 100+ Indonesian foods + OpenFoodFacts Indonesia search
+const APP_VERSION = '1.4.0'; // Refactor: Applied guard clauses and clean code principles throughout codebase
 const CACHE_NAME = `kcal-calculator-v${APP_VERSION}`;
 
 const STATIC_ASSETS = [

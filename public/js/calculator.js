@@ -43,15 +43,10 @@ const Calculator = {
      * @returns {Object} Category object with label and color
      */
     getBMICategory(bmi) {
-        if (bmi < 18.5) {
-            return this.BMI_CATEGORIES.UNDERWEIGHT;
-        } else if (bmi < 25) {
-            return this.BMI_CATEGORIES.NORMAL;
-        } else if (bmi < 30) {
-            return this.BMI_CATEGORIES.OVERWEIGHT;
-        } else {
-            return this.BMI_CATEGORIES.OBESE;
-        }
+        if (bmi < 18.5) return this.BMI_CATEGORIES.UNDERWEIGHT;
+        if (bmi < 25) return this.BMI_CATEGORIES.NORMAL;
+        if (bmi < 30) return this.BMI_CATEGORIES.OVERWEIGHT;
+        return this.BMI_CATEGORIES.OBESE;
     },
 
     /**
@@ -65,17 +60,10 @@ const Calculator = {
      * @returns {number} BMR in kcal/day
      */
     calculateBMR(weight, height, age, gender) {
-        if (!weight || !height || !age || !gender) {
-            return 0;
-        }
+        if (!weight || !height || !age || !gender) return 0;
 
         let bmr = (10 * weight) + (6.25 * height) - (5 * age);
-        
-        if (gender === 'male') {
-            bmr += 5;
-        } else {
-            bmr -= 161;
-        }
+        bmr += gender === 'male' ? 5 : -161;
 
         return Math.round(bmr);
     },
@@ -88,9 +76,7 @@ const Calculator = {
      * @returns {number} TDEE in kcal/day
      */
     calculateTDEE(bmr, activityMultiplier) {
-        if (!bmr || !activityMultiplier) {
-            return 0;
-        }
+        if (!bmr || !activityMultiplier) return 0;
         return Math.round(bmr * activityMultiplier);
     },
 
@@ -168,12 +154,10 @@ const Calculator = {
      * @returns {number} Target calories
      */
     calculateTargetCalories(tdee, goalType, customCalories = null) {
-        if (customCalories && customCalories > 0) {
-            return customCalories;
-        }
+        if (customCalories && customCalories > 0) return customCalories;
         
         const goal = this.GOAL_TYPES[goalType] || this.GOAL_TYPES['maintenance'];
-        return Math.max(1200, tdee + goal.adjustment); // Minimum 1200 kcal for safety
+        return Math.max(1200, tdee + goal.adjustment);
     },
 
     /**
@@ -185,15 +169,16 @@ const Calculator = {
      */
     estimateGoalTime(currentWeight, targetWeight, goalType) {
         const goal = this.GOAL_TYPES[goalType];
-        if (!goal || goal.weeklyChange === 0) {
-            return null;
-        }
+        
+        if (!goal || goal.weeklyChange === 0) return null;
         
         const weightDiff = targetWeight - currentWeight;
         
         // Check if goal type matches weight direction
-        if ((weightDiff < 0 && goal.weeklyChange > 0) || 
-            (weightDiff > 0 && goal.weeklyChange < 0)) {
+        const isDirectionMismatch = (weightDiff < 0 && goal.weeklyChange > 0) || 
+                                    (weightDiff > 0 && goal.weeklyChange < 0);
+        
+        if (isDirectionMismatch) {
             return { error: 'Goal type doesn\'t match target weight direction' };
         }
         
@@ -237,47 +222,55 @@ const Calculator = {
      * @returns {Object} Status object with icon, message, and type
      */
     getCalorieStatus(consumed, target) {
-        const percentage = (consumed / target) * 100;
-        const remaining = target - consumed;
-
         if (consumed === 0) {
             return {
                 icon: '🍽️',
                 message: 'Mulai catat makananmu!',
                 type: 'default'
             };
-        } else if (percentage < 50) {
+        }
+
+        const percentage = (consumed / target) * 100;
+        const remaining = target - consumed;
+
+        if (percentage < 50) {
             return {
                 icon: '💪',
                 message: `Masih ada ${remaining} kcal lagi. Tetap semangat!`,
                 type: 'default'
             };
-        } else if (percentage < 80) {
+        }
+
+        if (percentage < 80) {
             return {
                 icon: '👍',
                 message: `Bagus! Sisa ${remaining} kcal lagi.`,
                 type: 'default'
             };
-        } else if (percentage < 100) {
+        }
+
+        if (percentage < 100) {
             return {
                 icon: '🎯',
                 message: `Hampir tercapai! Sisa ${remaining} kcal.`,
                 type: 'warning'
             };
-        } else if (percentage === 100) {
+        }
+
+        if (percentage === 100) {
             return {
                 icon: '🎉',
                 message: 'Target kalori tercapai!',
                 type: 'default'
             };
-        } else {
-            const over = consumed - target;
-            return {
-                icon: '⚠️',
-                message: `Kelebihan ${over} kcal dari target!`,
-                type: 'danger'
-            };
         }
+
+        const over = consumed - target;
+        return {
+            icon: '⚠️',
+            message: `Kelebihan ${over} kcal dari target!`,
+            type: 'danger'
+        };
     }
 };
 

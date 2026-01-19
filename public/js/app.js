@@ -388,8 +388,7 @@ const App = {
     },
 
     async handleAutocompleteSearch(query) {
-        const suggestions = this.elements.foodSuggestions;
-        const hint = this.elements.foodHint;
+        const { suggestions, hint } = this.elements;
 
         if (query.length < 2) {
             this.closeAutocomplete();
@@ -397,15 +396,45 @@ const App = {
             return;
         }
 
-        // 1. Search all sources and combine by relevance
-        let customResults = Storage.searchCustomFoodsWithScore(query, 10);
-        let localResults = FoodsDB.searchWithScore(query, 10);
+        // Search all sources and combine by relevance
+        let results = await this.searchAllFoodSources(query);
 
-        // Merge results, avoiding duplicates (prefer custom if same name)
+        this.state.autocomplete.suggestions = results;
+        this.state.autocomplete.selectedIndex = -1;
+
+        if (results.length === 0) {
+            this.showEmptyAutocompleteResults(suggestions, hint);
+            return;
+        }
+
+        this.displayAutocompleteResults(results, query, suggestions, hint);
+    },
+
+    async searchAllFoodSources(query) {
+        // 1. Search local sources
+        const customResults = Storage.searchCustomFoodsWithScore(query, 10);
+        const localResults = FoodsDB.searchWithScore(query, 10);
+        let results = this.mergeSearchResults(customResults, localResults, 8);
+
+        // 2. Search OpenFoodFacts for Indonesian products
+        if (results.length < 5) {
+            const indonesianResults = await this.searchIndonesianProducts(query);
+            results = this.mergeResultsWithPriority(indonesianResults, results, 8);
+        }
+
+        // 3. Search CalorieNinjas API as fallback
+        if (CalorieAPI.isConfigured() && results.length < 3) {
+            const apiResults = await this.searchCalorieNinjas(query);
+            results = this.mergeResults(results, apiResults, 8);
+        }
+
+        return results;
+    },
+
+    mergeSearchResults(customResults, localResults, limit) {
         const seenNames = new Set();
-        let allResults = [];
+        const allResults = [];
 
-        // Combine all results with scores
         [...customResults, ...localResults].forEach(item => {
             const nameLower = item.food.name.toLowerCase();
             if (!seenNames.has(nameLower)) {
@@ -414,72 +443,104 @@ const App = {
             }
         });
 
-        // Sort by score (highest first) and take top 8
-        allResults.sort((a, b) => b.score - a.score);
-        let results = allResults.slice(0, 8).map(item => item.food);
+        return allResults
+            .sort((a, b) => b.score - a.score)
+            .slice(0, limit)
+            .map(item => item.food);
+    },
 
-        // 2. Search OpenFoodFacts for Indonesian products first (if not enough results)
-        if (results.length < 5) {
-            hint.textContent = 'Mencari produk Indonesia...';
-            try {
-                const indonesianResults = await CalorieAPI.searchIndonesianFoods(query);
-                if (indonesianResults.length > 0) {
-                    const existingNames = results.map(r => r.name.toLowerCase());
-                    const uniqueIndonesianResults = indonesianResults.filter(r => !existingNames.includes(r.name.toLowerCase()));
-                    
-                    // Prioritize Indonesian products - add them at the beginning
-                    results = [...uniqueIndonesianResults, ...results].slice(0, 8);
-                    hint.textContent = `${results.length} ditemukan`;
-                }
-            } catch (error) {
-                console.error('OpenFoodFacts search error:', error);
-            }
+    async searchIndonesianProducts(query) {
+        try {
+            this.elements.foodHint.textContent = 'Mencari produk Indonesia...';
+            const results = await CalorieAPI.searchIndonesianFoods(query);
+            return results;
+        } catch (error) {
+            console.error('OpenFoodFacts search error:', error);
+            return [];
         }
+    },
 
-        // 3. Search CalorieNinjas API as fallback (if still not enough results)
-        if (CalorieAPI.isConfigured() && results.length < 3) {
-            hint.textContent = 'Mencari...';
-            try {
-                const apiResults = await CalorieAPI.search(query);
-                const existingNames = results.map(r => r.name.toLowerCase());
-                const uniqueApiResults = apiResults.filter(r => !existingNames.includes(r.name.toLowerCase()));
-                results = [...results, ...uniqueApiResults].slice(0, 8);
-                hint.textContent = `${results.length} ditemukan`;
-            } catch (error) {
-                console.error('API error:', error);
-            }
+    async searchCalorieNinjas(query) {
+        try {
+            this.elements.foodHint.textContent = 'Mencari...';
+            const results = await CalorieAPI.search(query);
+            return results;
+        } catch (error) {
+            console.error('API error:', error);
+            return [];
         }
+    },
 
-        this.state.autocomplete.suggestions = results;
-        this.state.autocomplete.selectedIndex = -1;
+    mergeResultsWithPriority(priorityResults, existingResults, limit) {
+        if (priorityResults.length === 0) return existingResults;
 
-        if (results.length === 0) {
-            suggestions.innerHTML = '<li class="autocomplete-no-results">Tidak ditemukan. Makanan akan disimpan otomatis.</li>';
-            suggestions.classList.add('active');
-            this.state.autocomplete.isOpen = true;
-            hint.textContent = '';
-            return;
-        }
+        const existingNames = existingResults.map(r => r.name.toLowerCase());
+        const uniquePriorityResults = priorityResults.filter(r =>
+            !existingNames.includes(r.name.toLowerCase())
+        );
 
-        suggestions.innerHTML = results.map((food, index) => `
-            <li class="autocomplete-item ${food.source === 'api' ? 'from-api' : ''} ${food.source === 'custom' ? 'from-custom' : ''}" data-index="${index}">
+        const merged = [...uniquePriorityResults, ...existingResults].slice(0, limit);
+        this.elements.foodHint.textContent = `${merged.length} ditemukan`;
+        return merged;
+    },
+
+    mergeResults(existingResults, newResults, limit) {
+        const existingNames = existingResults.map(r => r.name.toLowerCase());
+        const uniqueNewResults = newResults.filter(r =>
+            !existingNames.includes(r.name.toLowerCase())
+        );
+
+        const merged = [...existingResults, ...uniqueNewResults].slice(0, limit);
+        this.elements.foodHint.textContent = `${merged.length} ditemukan`;
+        return merged;
+    },
+
+    showEmptyAutocompleteResults(suggestions, hint) {
+        suggestions.innerHTML = '<li class="autocomplete-no-results">Tidak ditemukan. Makanan akan disimpan otomatis.</li>';
+        suggestions.classList.add('active');
+        this.state.autocomplete.isOpen = true;
+        hint.textContent = '';
+    },
+
+    displayAutocompleteResults(results, query, suggestions, hint) {
+        suggestions.innerHTML = results
+            .map((food, index) => this.createAutocompleteItemHTML(food, query, index))
+            .join('');
+
+        this.bindAutocompleteEvents(suggestions, query);
+        suggestions.classList.add('active');
+        this.state.autocomplete.isOpen = true;
+        hint.textContent = `${results.length} ditemukan`;
+    },
+
+    createAutocompleteItemHTML(food, query, index) {
+        const sourceClass = food.source === 'api' ? 'from-api' : food.source === 'custom' ? 'from-custom' : '';
+        const apiBadge = food.source === 'api' ? '<span class="api-badge">API</span>' : '';
+        const customBadge = food.source === 'custom' ? '<span class="custom-badge">Saya</span>' : '';
+        const deleteBtn = food.source === 'custom'
+            ? `<button class="delete-custom-food" data-name="${this.escapeHtml(food.name)}" title="Hapus dari daftar saya">&times;</button>`
+            : '';
+
+        return `
+            <li class="autocomplete-item ${sourceClass}" data-index="${index}">
                 <span class="autocomplete-item-name">
                     ${this.highlightMatch(food.name, query)}
-                    ${food.source === 'api' ? '<span class="api-badge">API</span>' : ''}
-                    ${food.source === 'custom' ? '<span class="custom-badge">Saya</span>' : ''}
+                    ${apiBadge}
+                    ${customBadge}
                 </span>
                 <div class="autocomplete-item-info">
                     <span class="autocomplete-item-calories">${food.calories} kcal</span>
                     <span class="autocomplete-item-portion">${food.portion}</span>
                 </div>
-                ${food.source === 'custom' ? `<button class="delete-custom-food" data-name="${this.escapeHtml(food.name)}" title="Hapus dari daftar saya">&times;</button>` : ''}
+                ${deleteBtn}
             </li>
-        `).join('');
+        `;
+    },
 
+    bindAutocompleteEvents(suggestions, query) {
         // Bind click events for selecting items
         suggestions.querySelectorAll('.autocomplete-item').forEach(item => {
             item.addEventListener('click', (e) => {
-                // Don't select if clicking delete button
                 if (e.target.classList.contains('delete-custom-food')) return;
                 this.selectAutocompleteItem(parseInt(item.dataset.index));
             });
@@ -489,32 +550,30 @@ const App = {
         suggestions.querySelectorAll('.delete-custom-food').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
-                const foodName = btn.dataset.name;
-
-                const confirmed = await this.showConfirm({
-                    title: 'Hapus Makanan?',
-                    message: `"${foodName}" akan dihapus dari daftar makanan Anda dan tidak akan muncul di saran lagi.`,
-                    confirmText: 'Hapus',
-                    cancelText: 'Batal',
-                    type: 'warning'
-                });
-
-                if (confirmed) {
-                    Storage.deleteCustomFood(foodName);
-                    this.showToast(`"${foodName}" dihapus dari daftar Anda`, 'success');
-                    // Refresh suggestions
-                    this.handleAutocompleteSearch(this.elements.foodNameInput.value);
-                }
+                await this.handleDeleteCustomFood(btn.dataset.name, query);
             });
         });
+    },
 
-        suggestions.classList.add('active');
-        this.state.autocomplete.isOpen = true;
-        hint.textContent = `${results.length} ditemukan`;
+    async handleDeleteCustomFood(foodName, query) {
+        const confirmed = await this.showConfirm({
+            title: 'Hapus Makanan?',
+            message: `"${foodName}" akan dihapus dari daftar makanan Anda dan tidak akan muncul di saran lagi.`,
+            confirmText: 'Hapus',
+            cancelText: 'Batal',
+            type: 'warning'
+        });
+
+        if (!confirmed) return;
+
+        Storage.deleteCustomFood(foodName);
+        this.showToast(`"${foodName}" dihapus dari daftar Anda`, 'success');
+        this.handleAutocompleteSearch(query);
     },
 
     handleAutocompleteKeydown(e) {
         const { suggestions, selectedIndex, isOpen } = this.state.autocomplete;
+
         if (!isOpen || suggestions.length === 0) return;
 
         switch (e.key) {
@@ -547,19 +606,22 @@ const App = {
         }
 
         let newIndex = selectedIndex + direction;
-        if (newIndex < 0) newIndex = suggestions.length - 1;
-        if (newIndex >= suggestions.length) newIndex = 0;
-
-        if (items[newIndex]) {
-            items[newIndex].classList.add('selected');
-            items[newIndex].scrollIntoView({ block: 'nearest' });
+        if (newIndex < 0) {
+            newIndex = suggestions.length - 1;
+        } else if (newIndex >= suggestions.length) {
+            newIndex = 0;
         }
 
+        if (!items[newIndex]) return;
+
+        items[newIndex].classList.add('selected');
+        items[newIndex].scrollIntoView({ block: 'nearest' });
         this.state.autocomplete.selectedIndex = newIndex;
     },
 
     selectAutocompleteItem(index) {
         const food = this.state.autocomplete.suggestions[index];
+
         if (!food) return;
 
         this.elements.foodNameInput.value = food.name;
@@ -598,37 +660,45 @@ const App = {
      */
     loadSavedData() {
         const profile = Storage.getProfile();
+
+        if (!profile) return;
+
+        this.state.profile = profile;
+        this.state.calculations = Calculator.calculateAll(profile);
+        this.populateProfileForm(profile);
+        this.showProfileDisplay(profile);
+        this.showResults();
+        this.showAllSections();
+
+        this.loadGoalData();
+        this.loadAllDashboardData();
+    },
+
+    loadGoalData() {
         const goal = Storage.getGoal();
 
-        if (profile) {
-            this.state.profile = profile;
-            this.state.calculations = Calculator.calculateAll(profile);
-            this.populateProfileForm(profile);
-            this.showProfileDisplay(profile);
-            this.showResults();
-            this.showAllSections();
-
-            if (goal) {
-                this.state.goal = goal;
-                this.state.targetCalories = Calculator.calculateTargetCalories(
-                    this.state.calculations.tdee,
-                    goal.goalType,
-                    goal.customCalories
-                );
-                this.showGoalDisplay();
-            } else {
-                this.state.targetCalories = this.state.calculations.tdee;
-                this.showGoalForm();
-            }
-
-            this.loadFoods();
-            this.updateDashboard();
-            this.loadWeightProgress();
-            this.loadBodyMeasurements();
-            this.loadHistory();
-            this.loadTemplates();
-            this.updateGeneratorMaxCalories();
+        if (goal) {
+            this.state.goal = goal;
+            this.state.targetCalories = Calculator.calculateTargetCalories(
+                this.state.calculations.tdee,
+                goal.goalType,
+                goal.customCalories
+            );
+            this.showGoalDisplay();
+        } else {
+            this.state.targetCalories = this.state.calculations.tdee;
+            this.showGoalForm();
         }
+    },
+
+    loadAllDashboardData() {
+        this.loadFoods();
+        this.updateDashboard();
+        this.loadWeightProgress();
+        this.loadBodyMeasurements();
+        this.loadHistory();
+        this.loadTemplates();
+        this.updateGeneratorMaxCalories();
     },
 
     showAllSections() {
@@ -670,11 +740,31 @@ const App = {
     },
 
     validateProfile(profile) {
-        if (!profile.gender) { this.showToast('Pilih jenis kelamin', 'error'); return false; }
-        if (!profile.age || profile.age < 10 || profile.age > 120) { this.showToast('Umur: 10-120 tahun', 'error'); return false; }
-        if (!profile.height || profile.height < 100 || profile.height > 250) { this.showToast('Tinggi: 100-250 cm', 'error'); return false; }
-        if (!profile.weight || profile.weight < 30 || profile.weight > 300) { this.showToast('Berat: 30-300 kg', 'error'); return false; }
-        if (!profile.activity) { this.showToast('Pilih level aktivitas', 'error'); return false; }
+        if (!profile.gender) {
+            this.showToast('Pilih jenis kelamin', 'error');
+            return false;
+        }
+
+        if (!profile.age || profile.age < 10 || profile.age > 120) {
+            this.showToast('Umur: 10-120 tahun', 'error');
+            return false;
+        }
+
+        if (!profile.height || profile.height < 100 || profile.height > 250) {
+            this.showToast('Tinggi: 100-250 cm', 'error');
+            return false;
+        }
+
+        if (!profile.weight || profile.weight < 30 || profile.weight > 300) {
+            this.showToast('Berat: 30-300 kg', 'error');
+            return false;
+        }
+
+        if (!profile.activity) {
+            this.showToast('Pilih level aktivitas', 'error');
+            return false;
+        }
+
         return true;
     },
 
@@ -725,18 +815,23 @@ const App = {
 
     updateWeightDiffMessage(currentWeight, idealWeight) {
         const diffEl = this.elements.weightDiffMessage;
+
         if (currentWeight < idealWeight.min) {
             const diff = (idealWeight.min - currentWeight).toFixed(1);
             diffEl.textContent = `Perlu naik ${diff} kg`;
             diffEl.className = 'ideal-weight-diff need-gain';
-        } else if (currentWeight > idealWeight.max) {
+            return;
+        }
+
+        if (currentWeight > idealWeight.max) {
             const diff = (currentWeight - idealWeight.max).toFixed(1);
             diffEl.textContent = `Perlu turun ${diff} kg`;
             diffEl.className = 'ideal-weight-diff need-lose';
-        } else {
-            diffEl.textContent = 'Berat ideal!';
-            diffEl.className = 'ideal-weight-diff ideal';
+            return;
         }
+
+        diffEl.textContent = 'Berat ideal!';
+        diffEl.className = 'ideal-weight-diff ideal';
     },
 
     /**
@@ -780,27 +875,32 @@ const App = {
 
         this.elements.displayTargetCalories.textContent = this.state.targetCalories.toLocaleString('id-ID');
 
-        if (this.state.goal.targetWeight) {
-            this.elements.displayTargetWeight.textContent = `${this.state.goal.targetWeight} kg`;
-
-            const estimate = Calculator.estimateGoalTime(
-                this.state.profile.weight,
-                this.state.goal.targetWeight,
-                this.state.goal.goalType
-            );
-
-            if (estimate && !estimate.error) {
-                this.elements.displayGoalTime.textContent = `${estimate.weeks} minggu`;
-                this.elements.displayGoalDate.textContent = estimate.targetDate;
-            } else {
-                this.elements.displayGoalTime.textContent = '-';
-                this.elements.displayGoalDate.textContent = '-';
-            }
-        } else {
-            this.elements.displayTargetWeight.textContent = '-';
-            this.elements.displayGoalTime.textContent = '-';
-            this.elements.displayGoalDate.textContent = '-';
+        if (!this.state.goal.targetWeight) {
+            this.setGoalDisplayEmpty();
+            return;
         }
+
+        this.elements.displayTargetWeight.textContent = `${this.state.goal.targetWeight} kg`;
+
+        const estimate = Calculator.estimateGoalTime(
+            this.state.profile.weight,
+            this.state.goal.targetWeight,
+            this.state.goal.goalType
+        );
+
+        if (!estimate || estimate.error) {
+            this.setGoalDisplayEmpty();
+            return;
+        }
+
+        this.elements.displayGoalTime.textContent = `${estimate.weeks} minggu`;
+        this.elements.displayGoalDate.textContent = estimate.targetDate;
+    },
+
+    setGoalDisplayEmpty() {
+        this.elements.displayTargetWeight.textContent = '-';
+        this.elements.displayGoalTime.textContent = '-';
+        this.elements.displayGoalDate.textContent = '-';
     },
 
     /**
@@ -825,13 +925,16 @@ const App = {
         const remaining = Math.max(0, target - consumed);
         const percentage = Math.min(100, Math.round((consumed / target) * 100));
 
+        this.updateDashboardValues(consumed, target, remaining, percentage);
+        this.updateProgressRing(percentage, consumed > target);
+        this.updateStatusMessage(consumed, target);
+    },
+
+    updateDashboardValues(consumed, target, remaining, percentage) {
         this.elements.consumedCalories.textContent = consumed.toLocaleString('id-ID');
         this.elements.targetCalories.textContent = target.toLocaleString('id-ID');
         this.elements.remainingCalories.textContent = remaining.toLocaleString('id-ID');
         this.elements.percentageConsumed.textContent = `${percentage}%`;
-
-        this.updateProgressRing(percentage, consumed > target);
-        this.updateStatusMessage(consumed, target);
     },
 
     updateProgressRing(percentage, isOver) {
@@ -843,8 +946,15 @@ const App = {
         ring.style.strokeDashoffset = offset;
 
         ring.classList.remove('warning', 'danger');
-        if (isOver) ring.classList.add('danger');
-        else if (percentage >= 80) ring.classList.add('warning');
+
+        if (isOver) {
+            ring.classList.add('danger');
+            return;
+        }
+
+        if (percentage >= 80) {
+            ring.classList.add('warning');
+        }
     },
 
     updateStatusMessage(consumed, target) {
@@ -861,10 +971,10 @@ const App = {
         const current = Storage.getWaterIntake();
         this.updateWaterDisplay(current);
 
-        if (this.state.profile) {
-            const recommended = Calculator.getRecommendedWater(this.state.profile.weight);
-            this.elements.waterTarget.textContent = recommended.glasses;
-        }
+        if (!this.state.profile) return;
+
+        const recommended = Calculator.getRecommendedWater(this.state.profile.weight);
+        this.elements.waterTarget.textContent = recommended.glasses;
     },
 
     addWater(glasses) {
@@ -902,30 +1012,38 @@ const App = {
         Storage.addFood({ name, calories });
 
         // Check if this food is from our database or custom
-        const isInDatabase = FoodsDB.search(name, 1).some(f => f.name.toLowerCase() === name.toLowerCase());
+        const isInDatabase = FoodsDB.search(name, 1).some(f =>
+            f.name.toLowerCase() === name.toLowerCase()
+        );
         const isCustomFood = Storage.getCustomFood(name);
 
-        // If not in database, save as custom food for future suggestions
+        // Save as custom food if not in database
         if (!isInDatabase) {
             Storage.saveCustomFood({ name, calories });
-            if (!isCustomFood) {
-                this.showToast(`"${name}" ditambahkan ke makanan Anda`, 'success');
-            } else {
-                this.showToast(`"${name}" berhasil dicatat`, 'success');
-            }
-        } else {
-            this.showToast(`"${name}" berhasil dicatat`, 'success');
         }
 
+        // Show appropriate message
+        const message = isInDatabase
+            ? `"${name}" berhasil dicatat`
+            : isCustomFood
+                ? `"${name}" berhasil dicatat`
+                : `"${name}" ditambahkan ke makanan Anda`;
+
+        this.showToast(message, 'success');
+
+        // Reset form
+        this.resetFoodForm();
+        this.loadFoods();
+        this.updateDashboard();
+        this.loadHistory();
+    },
+
+    resetFoodForm() {
         this.elements.foodNameInput.value = '';
         this.elements.foodCaloriesInput.value = '';
         this.elements.foodHint.textContent = '';
         this.closeAutocomplete();
         this.elements.foodNameInput.focus();
-
-        this.loadFoods();
-        this.updateDashboard();
-        this.loadHistory();
     },
 
     loadFoods() {
@@ -933,15 +1051,24 @@ const App = {
         this.elements.foodList.innerHTML = '';
 
         if (foods.length === 0) {
-            this.elements.emptyFoodMessage.style.display = 'block';
-            this.elements.clearFoodsBtn.style.display = 'none';
-        } else {
-            this.elements.emptyFoodMessage.style.display = 'none';
-            this.elements.clearFoodsBtn.style.display = 'block';
-            foods.forEach(food => {
-                this.elements.foodList.appendChild(this.createFoodItem(food));
-            });
+            this.showEmptyFoodList();
+            return;
         }
+
+        this.showFoodList(foods);
+    },
+
+    showEmptyFoodList() {
+        this.elements.emptyFoodMessage.style.display = 'block';
+        this.elements.clearFoodsBtn.style.display = 'none';
+    },
+
+    showFoodList(foods) {
+        this.elements.emptyFoodMessage.style.display = 'none';
+        this.elements.clearFoodsBtn.style.display = 'block';
+        foods.forEach(food => {
+            this.elements.foodList.appendChild(this.createFoodItem(food));
+        });
     },
 
     createFoodItem(food) {
@@ -982,6 +1109,7 @@ const App = {
 
     async handleClearFoods() {
         const foodCount = Storage.getFoods().length;
+
         if (foodCount === 0) {
             this.showToast('Tidak ada makanan untuk dihapus', 'warning');
             return;
@@ -995,13 +1123,13 @@ const App = {
             type: 'danger'
         });
 
-        if (confirmed) {
-            Storage.clearFoods();
-            this.loadFoods();
-            this.updateDashboard();
-            this.loadHistory();
-            this.showToast(`${foodCount} makanan berhasil dihapus`, 'success');
-        }
+        if (!confirmed) return;
+
+        Storage.clearFoods();
+        this.loadFoods();
+        this.updateDashboard();
+        this.loadHistory();
+        this.showToast(`${foodCount} makanan berhasil dihapus`, 'success');
     },
 
     /**
@@ -1009,6 +1137,7 @@ const App = {
      */
     handleAddWeight() {
         const weight = parseFloat(this.elements.weightInputField.value);
+
         if (!weight || weight < 30 || weight > 300) {
             this.showToast('Masukkan berat yang valid (30-300 kg)', 'warning');
             return;
@@ -1025,43 +1154,59 @@ const App = {
         const log = Storage.getWeightLog();
 
         if (!progress) {
-            this.elements.weightStats.style.display = 'none';
-            this.elements.weightChartContainer.innerHTML = '<p class="empty-message">Belum ada data berat badan.</p>';
+            this.showEmptyWeightProgress();
             return;
         }
 
+        this.displayWeightStats(progress);
+        this.displayWeightChart(log);
+    },
+
+    showEmptyWeightProgress() {
+        this.elements.weightStats.style.display = 'none';
+        this.elements.weightChartContainer.innerHTML = '<p class="empty-message">Belum ada data berat badan.</p>';
+    },
+
+    displayWeightStats(progress) {
         this.elements.weightStats.style.display = 'grid';
         this.elements.startWeight.textContent = `${progress.startWeight} kg`;
         this.elements.currentWeightDisplay.textContent = `${progress.currentWeight} kg`;
 
         const changeEl = this.elements.weightChange;
         const sign = progress.change > 0 ? '+' : '';
+        const changeClass = progress.change > 0 ? 'positive' : progress.change < 0 ? 'negative' : '';
+
         changeEl.textContent = `${sign}${progress.change.toFixed(1)} kg`;
-        changeEl.className = 'weight-stat-value ' + (progress.change > 0 ? 'positive' : progress.change < 0 ? 'negative' : '');
+        changeEl.className = `weight-stat-value ${changeClass}`;
+    },
 
-        // Chart
+    displayWeightChart(log) {
         const last7 = log.slice(-7);
-        if (last7.length > 0) {
-            const maxWeight = Math.max(...last7.map(e => e.weight));
-            const minWeight = Math.min(...last7.map(e => e.weight));
-            const range = maxWeight - minWeight || 1;
 
-            this.elements.weightChartContainer.innerHTML = `
-                <div class="chart-bars">
-                    ${last7.map(entry => {
-                const height = ((entry.weight - minWeight) / range) * 80 + 20;
-                const date = new Date(entry.date);
-                return `
-                            <div class="chart-bar-item">
-                                <span class="chart-bar-value">${entry.weight}</span>
-                                <div class="chart-bar" style="height: ${height}px;"></div>
-                                <span class="chart-bar-label">${date.getDate()}/${date.getMonth() + 1}</span>
-                            </div>
-                        `;
-            }).join('')}
-                </div>
-            `;
-        }
+        if (last7.length === 0) return;
+
+        const maxWeight = Math.max(...last7.map(e => e.weight));
+        const minWeight = Math.min(...last7.map(e => e.weight));
+        const range = maxWeight - minWeight || 1;
+
+        this.elements.weightChartContainer.innerHTML = `
+            <div class="chart-bars">
+                ${last7.map(entry => this.createWeightChartBar(entry, minWeight, range)).join('')}
+            </div>
+        `;
+    },
+
+    createWeightChartBar(entry, minWeight, range) {
+        const height = ((entry.weight - minWeight) / range) * 80 + 20;
+        const date = new Date(entry.date);
+
+        return `
+            <div class="chart-bar-item">
+                <span class="chart-bar-value">${entry.weight}</span>
+                <div class="chart-bar" style="height: ${height}px;"></div>
+                <span class="chart-bar-label">${date.getDate()}/${date.getMonth() + 1}</span>
+            </div>
+        `;
     },
 
     /**
@@ -1093,11 +1238,20 @@ const App = {
         const all = Storage.getBodyMeasurements();
 
         if (!latest) {
-            this.elements.measurementDisplay.innerHTML = '<p class="empty-message">Belum ada data ukuran tubuh.</p>';
-            this.elements.measurementHistory.style.display = 'none';
+            this.showEmptyBodyMeasurements();
             return;
         }
 
+        this.displayBodyMeasurements(latest);
+        this.displayBodyMeasurementHistory(all);
+    },
+
+    showEmptyBodyMeasurements() {
+        this.elements.measurementDisplay.innerHTML = '<p class="empty-message">Belum ada data ukuran tubuh.</p>';
+        this.elements.measurementHistory.style.display = 'none';
+    },
+
+    displayBodyMeasurements(latest) {
         const fields = [
             { key: 'waist', label: 'Pinggang' },
             { key: 'chest', label: 'Dada' },
@@ -1109,25 +1263,42 @@ const App = {
 
         this.elements.measurementDisplay.innerHTML = `
             <div class="measurement-grid">
-                ${fields.map(f => `
-                    <div class="measurement-item">
-                        <span class="measurement-label">${f.label}</span>
-                        <span class="measurement-value">${latest[f.key] || '-'}</span>
-                        <span class="measurement-unit">cm</span>
-                    </div>
-                `).join('')}
+                ${fields.map(f => this.createMeasurementItemHTML(f, latest)).join('')}
             </div>
         `;
+    },
 
-        if (all.length > 1) {
-            this.elements.measurementHistory.style.display = 'block';
-            this.elements.measurementHistoryList.innerHTML = all.slice(-5).reverse().map(m => `
-                <div class="measurement-history-item">
-                    <span>${new Date(m.date).toLocaleDateString('id-ID')}</span>
-                    <span>P: ${m.waist || '-'} | D: ${m.chest || '-'} | L: ${m.arm || '-'}</span>
-                </div>
-            `).join('');
+    createMeasurementItemHTML(field, latest) {
+        return `
+            <div class="measurement-item">
+                <span class="measurement-label">${field.label}</span>
+                <span class="measurement-value">${latest[field.key] || '-'}</span>
+                <span class="measurement-unit">cm</span>
+            </div>
+        `;
+    },
+
+    displayBodyMeasurementHistory(all) {
+        if (all.length <= 1) {
+            this.elements.measurementHistory.style.display = 'none';
+            return;
         }
+
+        this.elements.measurementHistory.style.display = 'block';
+        this.elements.measurementHistoryList.innerHTML = all
+            .slice(-5)
+            .reverse()
+            .map(m => this.createMeasurementHistoryItemHTML(m))
+            .join('');
+    },
+
+    createMeasurementHistoryItemHTML(measurement) {
+        return `
+            <div class="measurement-history-item">
+                <span>${new Date(measurement.date).toLocaleDateString('id-ID')}</span>
+                <span>P: ${measurement.waist || '-'} | D: ${measurement.chest || '-'} | L: ${measurement.arm || '-'}</span>
+            </div>
+        `;
     },
 
     /**
@@ -1137,21 +1308,33 @@ const App = {
         const history = Storage.getCalorieHistory(7);
         const target = this.state.targetCalories;
 
-        // Chart
-        const maxCal = Math.max(...history.map(h => h.calories), target);
-        this.elements.calorieChartBars.innerHTML = history.map(h => {
-            const height = maxCal > 0 ? (h.calories / maxCal) * 100 : 0;
-            const isOver = h.calories > target;
-            return `
-                <div class="chart-bar-item">
-                    <span class="chart-bar-value">${h.calories}</span>
-                    <div class="chart-bar" style="height: ${height}px; background: ${isOver ? 'var(--danger)' : 'var(--primary)'};"></div>
-                    <span class="chart-bar-label">${h.dayName}</span>
-                </div>
-            `;
-        }).join('');
+        this.displayCalorieChart(history, target);
+        this.displayHistoryList();
+    },
 
-        // List
+    displayCalorieChart(history, target) {
+        const maxCal = Math.max(...history.map(h => h.calories), target);
+
+        this.elements.calorieChartBars.innerHTML = history
+            .map(h => this.createCalorieChartBar(h, maxCal, target))
+            .join('');
+    },
+
+    createCalorieChartBar(historyItem, maxCal, target) {
+        const height = maxCal > 0 ? (historyItem.calories / maxCal) * 100 : 0;
+        const isOver = historyItem.calories > target;
+        const backgroundColor = isOver ? 'var(--danger)' : 'var(--primary)';
+
+        return `
+            <div class="chart-bar-item">
+                <span class="chart-bar-value">${historyItem.calories}</span>
+                <div class="chart-bar" style="height: ${height}px; background: ${backgroundColor};"></div>
+                <span class="chart-bar-label">${historyItem.dayName}</span>
+            </div>
+        `;
+    },
+
+    displayHistoryList() {
         const foodHistory = Storage.getFoodsHistory();
         const dates = Object.keys(foodHistory).sort().reverse().slice(0, 7);
 
@@ -1160,19 +1343,28 @@ const App = {
             return;
         }
 
-        this.elements.historyList.innerHTML = dates.map(date => {
-            const foods = foodHistory[date];
-            const total = foods.reduce((sum, f) => sum + f.calories, 0);
-            const dateObj = new Date(date);
-            return `
-                <div class="history-day">
-                    <div class="history-day-header">
-                        <span class="history-day-date">${dateObj.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short' })}</span>
-                        <span class="history-day-total">${total} kcal</span>
-                    </div>
+        this.elements.historyList.innerHTML = dates
+            .map(date => this.createHistoryDayHTML(date, foodHistory[date]))
+            .join('');
+    },
+
+    createHistoryDayHTML(date, foods) {
+        const total = foods.reduce((sum, f) => sum + f.calories, 0);
+        const dateObj = new Date(date);
+        const formattedDate = dateObj.toLocaleDateString('id-ID', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'short'
+        });
+
+        return `
+            <div class="history-day">
+                <div class="history-day-header">
+                    <span class="history-day-date">${formattedDate}</span>
+                    <span class="history-day-total">${total} kcal</span>
                 </div>
-            `;
-        }).join('');
+            </div>
+        `;
     },
 
     /**
@@ -1185,10 +1377,12 @@ const App = {
 
     showTemplateModal() {
         const foods = Storage.getFoods();
+
         if (foods.length === 0) {
             this.showToast('Tidak ada makanan untuk disimpan sebagai template', 'warning');
             return;
         }
+
         this.elements.templateModal.style.display = 'flex';
     },
 
@@ -1199,12 +1393,17 @@ const App = {
 
     saveTemplate() {
         const name = this.elements.templateNameInput.value.trim();
+
         if (!name) {
             this.showToast('Masukkan nama template', 'warning');
             return;
         }
 
-        const foods = Storage.getFoods().map(f => ({ name: f.name, calories: f.calories }));
+        const foods = Storage.getFoods().map(f => ({
+            name: f.name,
+            calories: f.calories
+        }));
+
         Storage.saveMealTemplate({ name, foods });
         this.hideTemplateModal();
         this.loadTemplates();
@@ -1219,39 +1418,11 @@ const App = {
             return;
         }
 
-        this.elements.templatesList.innerHTML = templates.map(t => `
-            <div class="template-item">
-                <div class="template-info">
-                    <span class="template-name">${this.escapeHtml(t.name)}</span>
-                    <span class="template-calories">${t.totalCalories} kcal (${t.foods.length} item)</span>
-                </div>
-                <div class="template-actions">
-                    <button class="btn btn-success btn-small" data-id="${t.id}" data-action="apply">Pakai</button>
-                    <button class="btn btn-danger btn-small" data-id="${t.id}" data-action="delete">Hapus</button>
-                </div>
-            </div>
-        `).join('');
+        this.elements.templatesList.innerHTML = templates
+            .map(t => this.createTemplateItemHTML(t))
+            .join('');
 
-        this.elements.templatesList.querySelectorAll('button').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const id = parseInt(btn.dataset.id);
-                const templates = Storage.getMealTemplates();
-                const template = templates.find(t => t.id === id);
-                const templateName = template ? template.name : 'Template';
-
-                if (btn.dataset.action === 'apply') {
-                    Storage.applyMealTemplate(id);
-                    this.loadFoods();
-                    this.updateDashboard();
-                    this.loadHistory();
-                    this.showToast(`Template "${templateName}" diterapkan`, 'success');
-                } else {
-                    Storage.deleteMealTemplate(id);
-                    this.loadTemplates();
-                    this.showToast(`Template "${templateName}" dihapus`, 'info');
-                }
-            });
-        });
+        this.bindTemplateEvents();
     },
 
     escapeHtml(text) {
@@ -1270,8 +1441,9 @@ const App = {
 
         if (isAuto) {
             this.applyAutoTheme();
-            // Check every 30 minutes for time-based switching
-            setInterval(() => this.applyAutoTheme(), 30 * 60 * 1000);
+            // Check every minute for precise time-based switching
+            // This ensures theme changes exactly at 6 AM and 6 PM
+            setInterval(() => this.applyAutoTheme(), 60 * 1000);
         } else {
             const savedTheme = Storage.getThemeMode();
             this.applyTheme(savedTheme);
@@ -1280,13 +1452,34 @@ const App = {
 
     /**
      * Apply theme based on time (auto mode)
-     * Dark mode: 18:00 - 06:00 (6 PM - 6 AM)
+     * Dark mode: 18:00 - 06:00 (6 PM - 6 AM) WIB
+     * Light mode: 06:00 - 18:00 (6 AM - 6 PM) WIB
      */
     applyAutoTheme() {
-        const options = { timeZone: 'Asia/Jakarta', hour: 'numeric', hour12: false };
-        const hour = parseInt(new Date().toLocaleString('en-US', options).split(',')[1]);
-        const theme = (hour >= 18 || hour < 6) ? 'dark' : 'light';
+        const hour = this.getCurrentHourInIndonesia();
+        const theme = this.getThemeByHour(hour);
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+
+        if (currentTheme === theme) return;
+
         this.applyTheme(theme);
+    },
+
+    getCurrentHourInIndonesia() {
+        const now = new Date();
+        const options = {
+            timeZone: 'Asia/Jakarta',
+            hour: '2-digit',
+            hour12: false
+        };
+        const timeString = now.toLocaleTimeString('en-US', options);
+        return parseInt(timeString.split(':')[0]);
+    },
+
+    getThemeByHour(hour) {
+        // Dark mode: 18:00 (6 PM) to 06:00 (6 AM)
+        // Light mode: 06:00 (6 AM) to 18:00 (6 PM)
+        return (hour >= 18 || hour < 6) ? 'dark' : 'light';
     },
 
     /**
@@ -1325,7 +1518,7 @@ const App = {
         this.applyTheme(newTheme);
 
         this.showToast(
-            `Mode ${newTheme === 'dark' ? 'gelap' : 'terang'} aktif`,
+            `Mode ${newTheme === 'dark' ? 'gelap' : 'terang'} aktif (manual)`,
             'info'
         );
     },
@@ -1349,58 +1542,62 @@ const App = {
      */
     async startBarcodeScanner() {
         try {
-            // Check if camera is available
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const hasCamera = devices.some(device => device.kind === 'videoinput');
+            const hasCamera = await this.checkCameraAvailability();
 
             if (!hasCamera) {
                 this.showToast('Kamera tidak ditemukan', 'error');
                 return;
             }
 
-            // Show scanner container
-            this.elements.scannerContainer.style.display = 'block';
-            this.elements.startScannerBtn.style.display = 'none';
-            this.elements.scannerResult.style.display = 'none';
-            this.elements.manualInputContainer.style.display = 'none';
-
-            // Initialize Html5QrcodeScanner
-            const html5QrCode = new Html5Qrcode("scanner-reader");
-            this.state.scanner.html5QrCode = html5QrCode;
-            this.state.scanner.isScanning = true;
-
-            // Start scanning with barcode support
-            await html5QrCode.start(
-                { facingMode: "environment" }, // Back camera
-                {
-                    fps: 10,
-                    qrbox: { width: 250, height: 150 },
-                    formatsToSupport: [
-                        Html5QrcodeSupportedFormats.EAN_13,  // 0
-                        Html5QrcodeSupportedFormats.EAN_8,   // 1
-                        Html5QrcodeSupportedFormats.UPC_A,   // 3
-                        Html5QrcodeSupportedFormats.UPC_E,   // 4
-                        Html5QrcodeSupportedFormats.CODE_128, // 6
-                        Html5QrcodeSupportedFormats.CODE_39   // 7
-                    ]
-                },
-                (decodedText) => {
-                    // Success callback - stop scanner and process
-                    this.handleBarcodeScanned(decodedText);
-                },
-                (errorMessage) => {
-                    // Error callback (can be ignored, happens frequently during scanning)
-                }
-            ).catch((err) => {
-                console.error('Error starting scanner:', err);
-                this.showToast('Gagal memulai scanner', 'error');
-                this.stopBarcodeScanner();
-            });
+            this.showScannerUI();
+            await this.initializeScanner();
         } catch (error) {
             console.error('Scanner error:', error);
             this.showToast('Gagal membuka kamera: ' + error.message, 'error');
             this.stopBarcodeScanner();
         }
+    },
+
+    async checkCameraAvailability() {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        return devices.some(device => device.kind === 'videoinput');
+    },
+
+    showScannerUI() {
+        this.elements.scannerContainer.style.display = 'block';
+        this.elements.startScannerBtn.style.display = 'none';
+        this.elements.scannerResult.style.display = 'none';
+        this.elements.manualInputContainer.style.display = 'none';
+    },
+
+    async initializeScanner() {
+        const html5QrCode = new Html5Qrcode("scanner-reader");
+        this.state.scanner.html5QrCode = html5QrCode;
+        this.state.scanner.isScanning = true;
+
+        const barcodeFormats = [
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39
+        ];
+
+        await html5QrCode.start(
+            { facingMode: "environment" },
+            {
+                fps: 10,
+                qrbox: { width: 250, height: 150 },
+                formatsToSupport: barcodeFormats
+            },
+            (decodedText) => this.handleBarcodeScanned(decodedText),
+            () => { } // Error callback - can be ignored
+        ).catch((err) => {
+            console.error('Error starting scanner:', err);
+            this.showToast('Gagal memulai scanner', 'error');
+            this.stopBarcodeScanner();
+        });
     },
 
     /**
@@ -1416,6 +1613,10 @@ const App = {
             }
         }
 
+        this.resetScannerState();
+    },
+
+    resetScannerState() {
         this.state.scanner.html5QrCode = null;
         this.state.scanner.isScanning = false;
         this.elements.scannerContainer.style.display = 'none';
@@ -1426,7 +1627,6 @@ const App = {
      * Handle barcode scanned
      */
     async handleBarcodeScanned(barcode) {
-        // Stop scanner
         await this.stopBarcodeScanner();
 
         // Check if already in custom foods
@@ -1436,99 +1636,122 @@ const App = {
             return;
         }
 
-        // Show loading
         this.showToast('Mencari produk...', 'info');
 
-        // Search OpenFoodFacts API with Indonesia country preference
         try {
-            // Try Indonesia product first (country code: id)
-            let response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json?countries_tags_en=indonesia`);
-            let data = await response.json();
-            
-            // If not found in Indonesia, try general search
-            if (data.status !== 1 || !data.product) {
-                response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
-                data = await response.json();
-            }
+            const product = await this.fetchProductFromOpenFoodFacts(barcode);
 
-            console.log('OpenFoodFacts API Response:', data);
-
-            if (data.status === 1 && data.product) {
-                const product = data.product;
-                const nutriments = product.nutriments || {};
-
-                // Extract nutrition info - try multiple formats
-                let calories = 0;
-                
-                // Try different calorie formats from OpenFoodFacts
-                if (nutriments['energy-kcal_100g']) {
-                    calories = Math.round(nutriments['energy-kcal_100g']);
-                } else if (nutriments['energy-kcal']) {
-                    calories = Math.round(nutriments['energy-kcal']);
-                } else if (nutriments['energy-kcal_value']) {
-                    calories = Math.round(nutriments['energy-kcal_value']);
-                } else if (nutriments['energy_100g']) {
-                    // Convert kJ to kcal (1 kcal = 4.184 kJ)
-                    calories = Math.round(nutriments['energy_100g'] / 4.184);
-                } else if (nutriments['energy']) {
-                    calories = Math.round(nutriments['energy'] / 4.184);
-                } else if (nutriments['energy-kcal_serving']) {
-                    // Per serving
-                    const servingSize = product.serving_size || 100;
-                    calories = Math.round((nutriments['energy-kcal_serving'] / servingSize) * 100);
-                } else if (nutriments['energy_serving']) {
-                    const servingSize = product.serving_size || 100;
-                    calories = Math.round((nutriments['energy_serving'] / 4.184 / servingSize) * 100);
-                }
-
-                // Get product name
-                const productName = product.product_name || 
-                                   product.product_name_en || 
-                                   product.product_name_id ||
-                                   product.abbreviated_product_name ||
-                                   `Produk ${barcode}`;
-
-                // Get brand
-                const brand = product.brands || 
-                             product.brand || 
-                             product.brands_tags?.[0] ||
-                             '';
-
-                // Get portion info
-                const servingSize = product.serving_size || 100;
-                const portion = servingSize === 100 ? '100g' : `${servingSize}g`;
-
-                // If calories found, show product with calories
-                if (calories > 0) {
-                    const food = {
-                        name: productName,
-                        calories: calories,
-                        portion: portion,
-                        brand: brand,
-                        barcode: barcode,
-                        source: 'barcode'
-                    };
-
-                    // Save to custom foods
-                    Storage.saveCustomFoodWithBarcode(food);
-
-                    // Show product
-                    this.showScannedProduct(food, barcode);
-                } else {
-                    // Product found but no calorie data - show with manual input option
-                    console.log('Product found but no calorie data:', product);
-                    this.showProductWithManualCalorie(productName, brand, barcode);
-                }
-            } else {
-                // Product not found in API
+            if (!product) {
                 console.log('Product not found in OpenFoodFacts:', barcode);
                 this.showManualBarcodeInput(barcode);
+                return;
+            }
+
+            const calories = this.extractCaloriesFromProduct(product);
+            const productName = this.extractProductName(product, barcode);
+            const brand = this.extractBrand(product);
+            const portion = this.extractPortion(product);
+
+            if (calories > 0) {
+                const food = {
+                    name: productName,
+                    calories,
+                    portion,
+                    brand,
+                    barcode,
+                    source: 'barcode'
+                };
+
+                Storage.saveCustomFoodWithBarcode(food);
+                this.showScannedProduct(food, barcode);
+            } else {
+                console.log('Product found but no calorie data:', product);
+                this.showProductWithManualCalorie(productName, brand, barcode);
             }
         } catch (error) {
             console.error('API error:', error);
             this.showToast('Gagal mengambil data produk: ' + error.message, 'error');
             this.showManualBarcodeInput(barcode);
         }
+    },
+
+    async fetchProductFromOpenFoodFacts(barcode) {
+        // Try Indonesia product first
+        let response = await fetch(
+            `https://world.openfoodfacts.org/api/v0/product/${barcode}.json?countries_tags_en=indonesia`
+        );
+        let data = await response.json();
+
+        // If not found in Indonesia, try general search
+        if (data.status !== 1 || !data.product) {
+            response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
+            data = await response.json();
+        }
+
+        console.log('OpenFoodFacts API Response:', data);
+
+        if (data.status !== 1 || !data.product) {
+            return null;
+        }
+
+        return data.product;
+    },
+
+    extractCaloriesFromProduct(product) {
+        const nutriments = product.nutriments || {};
+
+        // Try different calorie formats from OpenFoodFacts
+        if (nutriments['energy-kcal_100g']) {
+            return Math.round(nutriments['energy-kcal_100g']);
+        }
+
+        if (nutriments['energy-kcal']) {
+            return Math.round(nutriments['energy-kcal']);
+        }
+
+        if (nutriments['energy-kcal_value']) {
+            return Math.round(nutriments['energy-kcal_value']);
+        }
+
+        if (nutriments['energy_100g']) {
+            return Math.round(nutriments['energy_100g'] / 4.184);
+        }
+
+        if (nutriments['energy']) {
+            return Math.round(nutriments['energy'] / 4.184);
+        }
+
+        if (nutriments['energy-kcal_serving']) {
+            const servingSize = product.serving_size || 100;
+            return Math.round((nutriments['energy-kcal_serving'] / servingSize) * 100);
+        }
+
+        if (nutriments['energy_serving']) {
+            const servingSize = product.serving_size || 100;
+            return Math.round((nutriments['energy_serving'] / 4.184 / servingSize) * 100);
+        }
+
+        return 0;
+    },
+
+    extractProductName(product, barcode) {
+        return product.product_name ||
+            product.product_name_en ||
+            product.product_name_id ||
+            product.abbreviated_product_name ||
+            `Produk ${barcode}`;
+    },
+
+    extractBrand(product) {
+        return product.brands ||
+            product.brand ||
+            product.brands_tags?.[0] ||
+            '';
+    },
+
+    extractPortion(product) {
+        const servingSize = product.serving_size || 100;
+        return servingSize === 100 ? '100g' : `${servingSize}g`;
     },
 
     /**
@@ -1555,19 +1778,19 @@ const App = {
         const descEl = document.getElementById('manual-input-description');
         if (titleEl) titleEl.textContent = 'Produk Ditemukan';
         if (descEl) descEl.textContent = 'Produk ditemukan tapi data kalori tidak tersedia. Silakan input kalori secara manual.';
-        
+
         this.elements.manualProductName.value = productName;
         this.elements.manualProductCalories.value = '';
-        this.state.scanner.scannedProduct = { 
+        this.state.scanner.scannedProduct = {
             name: productName,
             brand: brand,
-            barcode: barcode 
+            barcode: barcode
         };
-        
+
         this.elements.scannerResult.style.display = 'none';
         this.elements.manualInputContainer.style.display = 'block';
         this.elements.manualProductCalories.focus();
-        
+
         this.showToast('Produk ditemukan tapi data kalori tidak tersedia. Silakan input manual.', 'info');
     },
 
@@ -1580,15 +1803,15 @@ const App = {
         const descEl = document.getElementById('manual-input-description');
         if (titleEl) titleEl.textContent = 'Produk Tidak Ditemukan';
         if (descEl) descEl.textContent = 'Tambahkan informasi produk secara manual';
-        
+
         this.elements.manualProductName.value = `Produk ${barcode}`;
         this.elements.manualProductCalories.value = '';
         this.state.scanner.scannedProduct = { barcode };
-        
+
         this.elements.scannerResult.style.display = 'none';
         this.elements.manualInputContainer.style.display = 'block';
         this.elements.manualProductCalories.focus();
-        
+
         this.showToast('Produk tidak ditemukan, tambahkan manual', 'warning');
     },
 
@@ -1641,11 +1864,11 @@ const App = {
         }
 
         const food = {
-            name: name,
-            calories: calories,
+            name,
+            calories,
             portion: '100g',
             brand: scannedProduct?.brand || '',
-            barcode: barcode,
+            barcode,
             source: 'barcode'
         };
 
@@ -1653,17 +1876,15 @@ const App = {
         if (barcode) {
             Storage.saveCustomFoodWithBarcode(food);
         } else {
-            // If no barcode, save as regular custom food
             Storage.saveCustomFood(food);
         }
 
         // Add to daily
         Storage.addFood({ name, calories });
-        
+
         this.loadFoods();
         this.updateDashboard();
         this.loadHistory();
-        
         this.showToast(`"${name}" disimpan dan ditambahkan`, 'success');
         this.cancelManualInput();
     },
@@ -1796,9 +2017,8 @@ const App = {
 
         toast.classList.add('toast-out');
         setTimeout(() => {
-            if (toast.parentElement) {
-                toast.parentElement.removeChild(toast);
-            }
+            if (!toast.parentElement) return;
+            toast.parentElement.removeChild(toast);
         }, 300);
     },
 
@@ -1814,70 +2034,81 @@ const App = {
                 message = 'Apakah Anda yakin?',
                 confirmText = 'Ya',
                 cancelText = 'Batal',
-                type = 'danger' // danger, warning, info
+                type = 'danger'
             } = options;
 
-            // Set content
-            this.elements.confirmTitle.textContent = title;
-            this.elements.confirmMessage.textContent = message;
-            this.elements.confirmOk.textContent = confirmText;
-            this.elements.confirmCancel.textContent = cancelText;
+            this.setConfirmContent(title, message, confirmText, cancelText);
+            this.setConfirmIcon(type);
+            this.setConfirmButton(type);
 
-            // Set icon style
-            this.elements.confirmIcon.className = 'confirm-icon';
-            if (type === 'warning') {
-                this.elements.confirmIcon.classList.add('warning');
-            } else if (type === 'info') {
-                this.elements.confirmIcon.classList.add('info');
-            }
-
-            // Set button style
-            this.elements.confirmOk.className = 'btn';
-            if (type === 'danger') {
-                this.elements.confirmOk.classList.add('btn-danger');
-            } else if (type === 'warning') {
-                this.elements.confirmOk.classList.add('btn-warning');
-            } else {
-                this.elements.confirmOk.classList.add('btn-primary');
-            }
-
-            // Play warning sound
             this.playNotificationSound('warning');
-
-            // Show modal
             this.elements.confirmModal.style.display = 'flex';
 
-            // Cleanup function
-            const cleanup = () => {
-                this.elements.confirmOk.removeEventListener('click', onConfirm);
-                this.elements.confirmCancel.removeEventListener('click', onCancel);
-                this.elements.confirmModal.removeEventListener('click', onBackdrop);
-            };
-
-            // Handlers
-            const onConfirm = () => {
-                cleanup();
-                this.elements.confirmModal.style.display = 'none';
-                resolve(true);
-            };
-
-            const onCancel = () => {
-                cleanup();
-                this.elements.confirmModal.style.display = 'none';
-                resolve(false);
-            };
-
-            const onBackdrop = (e) => {
-                if (e.target === this.elements.confirmModal) {
-                    onCancel();
-                }
-            };
-
-            // Attach listeners
-            this.elements.confirmOk.addEventListener('click', onConfirm);
-            this.elements.confirmCancel.addEventListener('click', onCancel);
-            this.elements.confirmModal.addEventListener('click', onBackdrop);
+            const cleanup = this.createConfirmCleanup(resolve);
+            this.attachConfirmListeners(cleanup);
         });
+    },
+
+    setConfirmContent(title, message, confirmText, cancelText) {
+        this.elements.confirmTitle.textContent = title;
+        this.elements.confirmMessage.textContent = message;
+        this.elements.confirmOk.textContent = confirmText;
+        this.elements.confirmCancel.textContent = cancelText;
+    },
+
+    setConfirmIcon(type) {
+        this.elements.confirmIcon.className = 'confirm-icon';
+
+        if (type === 'warning') {
+            this.elements.confirmIcon.classList.add('warning');
+            return;
+        }
+
+        if (type === 'info') {
+            this.elements.confirmIcon.classList.add('info');
+        }
+    },
+
+    setConfirmButton(type) {
+        this.elements.confirmOk.className = 'btn';
+
+        if (type === 'danger') {
+            this.elements.confirmOk.classList.add('btn-danger');
+            return;
+        }
+
+        if (type === 'warning') {
+            this.elements.confirmOk.classList.add('btn-warning');
+            return;
+        }
+
+        this.elements.confirmOk.classList.add('btn-primary');
+    },
+
+    createConfirmCleanup(resolve) {
+        const onConfirm = () => {
+            this.elements.confirmModal.style.display = 'none';
+            resolve(true);
+        };
+
+        const onCancel = () => {
+            this.elements.confirmModal.style.display = 'none';
+            resolve(false);
+        };
+
+        const onBackdrop = (e) => {
+            if (e.target === this.elements.confirmModal) {
+                onCancel();
+            }
+        };
+
+        return { onConfirm, onCancel, onBackdrop };
+    },
+
+    attachConfirmListeners(cleanup) {
+        this.elements.confirmOk.addEventListener('click', cleanup.onConfirm);
+        this.elements.confirmCancel.addEventListener('click', cleanup.onCancel);
+        this.elements.confirmModal.addEventListener('click', cleanup.onBackdrop);
     },
 
     // ==================== FOOD GENERATOR ====================
@@ -1939,7 +2170,10 @@ const App = {
         // Validate against daily target calories
         const dailyTarget = this.state.targetCalories;
         if (targetCalories > dailyTarget) {
-            this.showToast(`Target kalori tidak boleh melebihi target harian (${dailyTarget.toLocaleString('id-ID')} kcal)`, 'error');
+            this.showToast(
+                `Target kalori tidak boleh melebihi target harian (${dailyTarget.toLocaleString('id-ID')} kcal)`,
+                'error'
+            );
             return;
         }
 
@@ -1948,7 +2182,13 @@ const App = {
         const maxCalories = targetCalories * (1 + tolerance);
 
         // Filter foods from database
-        const results = this.generateFoodRecommendations(minCalories, maxCalories, budgetMin, budgetMax, targetCalories);
+        const results = this.generateFoodRecommendations(
+            minCalories,
+            maxCalories,
+            budgetMin,
+            budgetMax,
+            targetCalories
+        );
 
         // Store results
         this.state.generator.results = results;
@@ -2008,17 +2248,34 @@ const App = {
         this.elements.generatorResults.style.display = 'block';
 
         if (results.length === 0) {
-            this.elements.generatorList.innerHTML = '';
-            this.elements.generatorEmpty.style.display = 'block';
-            this.elements.addSelectedFoods.style.display = 'none';
-            this.updateGeneratorSummary();
+            this.showEmptyGeneratorResults();
             return;
         }
 
+        this.showGeneratorResults(results);
+    },
+
+    showEmptyGeneratorResults() {
+        this.elements.generatorList.innerHTML = '';
+        this.elements.generatorEmpty.style.display = 'block';
+        this.elements.addSelectedFoods.style.display = 'none';
+        this.updateGeneratorSummary();
+    },
+
+    showGeneratorResults(results) {
         this.elements.generatorEmpty.style.display = 'none';
         this.elements.addSelectedFoods.style.display = 'block';
 
-        this.elements.generatorList.innerHTML = results.map((food, index) => `
+        this.elements.generatorList.innerHTML = results
+            .map((food, index) => this.createGeneratorItemHTML(food, index))
+            .join('');
+
+        this.bindGeneratorItemEvents(results);
+        this.updateGeneratorSummary();
+    },
+
+    createGeneratorItemHTML(food, index) {
+        return `
             <li class="generator-item" data-index="${index}">
                 <input type="checkbox" class="generator-item-checkbox" data-index="${index}">
                 <div class="generator-item-info">
@@ -2043,9 +2300,11 @@ const App = {
                     </button>
                 </div>
             </li>
-        `).join('');
+        `;
+    },
 
-        // Bind events
+    bindGeneratorItemEvents(results) {
+        // Bind events for generator items
         this.elements.generatorList.querySelectorAll('.generator-item').forEach(item => {
             const checkbox = item.querySelector('.generator-item-checkbox');
             const index = parseInt(item.dataset.index);
@@ -2058,9 +2317,7 @@ const App = {
             });
 
             // Checkbox change
-            checkbox.addEventListener('click', (e) => {
-                e.stopPropagation();
-            });
+            checkbox.addEventListener('click', (e) => e.stopPropagation());
             checkbox.addEventListener('change', () => {
                 this.toggleFoodSelection(index, checkbox.checked);
             });
@@ -2075,8 +2332,6 @@ const App = {
                 this.showPriceModal(foodName, defaultPrice);
             });
         });
-
-        this.updateGeneratorSummary();
     },
 
     /**
@@ -2085,11 +2340,13 @@ const App = {
     getMatchIndicator(percentage) {
         if (percentage >= 95) {
             return '<span class="match-indicator exact">Exact</span>';
-        } else if (percentage >= 80) {
-            return '<span class="match-indicator close">Close</span>';
-        } else {
-            return '<span class="match-indicator far">~' + Math.round(percentage) + '%</span>';
         }
+
+        if (percentage >= 80) {
+            return '<span class="match-indicator close">Close</span>';
+        }
+
+        return '<span class="match-indicator far">~' + Math.round(percentage) + '%</span>';
     },
 
     /**
@@ -2119,7 +2376,8 @@ const App = {
 
         this.elements.generatorList.querySelectorAll('.generator-item').forEach(item => {
             item.classList.add('selected');
-            item.querySelector('.generator-item-checkbox').checked = true;
+            const checkbox = item.querySelector('.generator-item-checkbox');
+            if (checkbox) checkbox.checked = true;
         });
 
         this.updateGeneratorSummary();
@@ -2133,7 +2391,8 @@ const App = {
 
         this.elements.generatorList.querySelectorAll('.generator-item').forEach(item => {
             item.classList.remove('selected');
-            item.querySelector('.generator-item-checkbox').checked = false;
+            const checkbox = item.querySelector('.generator-item-checkbox');
+            if (checkbox) checkbox.checked = false;
         });
 
         this.updateGeneratorSummary();
@@ -2143,52 +2402,50 @@ const App = {
      * Update generator summary
      */
     updateGeneratorSummary() {
-        const results = this.state.generator.results;
-        const selected = this.state.generator.selected;
+        const { results, selected } = this.state.generator;
 
-        // Total results
         this.elements.genResultCount.textContent = `${results.length} makanan ditemukan`;
-
-        // Selected count
         this.elements.genSelectedCount.textContent = `${selected.size} dipilih`;
 
-        // Calculate selected totals
+        const { totalCalories, totalPrice } = this.calculateSelectedTotals(results, selected);
+
+        this.elements.genSelectedCalories.textContent = `${totalCalories.toLocaleString('id-ID')} kcal`;
+        this.elements.genSelectedPrice.textContent = `Rp ${totalPrice.toLocaleString('id-ID')}`;
+    },
+
+    calculateSelectedTotals(results, selected) {
         let totalCalories = 0;
         let totalPrice = 0;
 
         selected.forEach(index => {
             const food = results[index];
-            if (food) {
-                totalCalories += food.calories;
-                totalPrice += food.effectivePrice;
-            }
+            if (!food) return;
+            totalCalories += food.calories;
+            totalPrice += food.effectivePrice;
         });
 
-        this.elements.genSelectedCalories.textContent = `${totalCalories.toLocaleString('id-ID')} kcal`;
-        this.elements.genSelectedPrice.textContent = `Rp ${totalPrice.toLocaleString('id-ID')}`;
+        return { totalCalories, totalPrice };
     },
 
     /**
      * Add selected foods to list
      */
     addSelectedFoodsToList() {
-        const selected = this.state.generator.selected;
-        const results = this.state.generator.results;
+        const { selected, results } = this.state.generator;
 
         if (selected.size === 0) {
             this.showToast('Pilih minimal satu makanan', 'warning');
             return;
         }
 
-        // Store count before clearing (FIX: selected is a reference that gets cleared)
+        // Store count before clearing
         const selectedCount = selected.size;
 
         // Add each selected food
         selected.forEach(index => {
             const food = results[index];
-            if (food) {
-                Storage.addFood({ name: food.name, calories: food.calories });
-            }
+            if (!food) return;
+            Storage.addFood({ name: food.name, calories: food.calories });
         });
 
         // Clear selection
@@ -2198,8 +2455,6 @@ const App = {
         this.loadFoods();
         this.updateDashboard();
         this.loadHistory();
-
-        // Show success message with stored count
         this.showToast(`${selectedCount} makanan berhasil ditambahkan!`, 'success');
     },
 
@@ -2207,11 +2462,12 @@ const App = {
      * Show price edit modal
      */
     showPriceModal(foodName, defaultPrice) {
+        if (!foodName) return;
+
         this.elements.priceEditFoodName.textContent = foodName;
         this.elements.priceEditFoodName.dataset.food = foodName;
         this.elements.priceEditFoodName.dataset.defaultPrice = defaultPrice;
 
-        // Get current effective price
         const currentPrice = Storage.getEffectivePrice(foodName, defaultPrice);
         this.elements.priceEditInput.value = currentPrice;
 
@@ -2241,7 +2497,10 @@ const App = {
 
         Storage.saveCustomPrice(foodName, newPrice);
         this.hidePriceModal();
-        this.showToast(`Harga "${foodName}" disimpan: Rp ${newPrice.toLocaleString('id-ID')}`, 'success');
+        this.showToast(
+            `Harga "${foodName}" disimpan: Rp ${newPrice.toLocaleString('id-ID')}`,
+            'success'
+        );
 
         // Refresh generator results
         this.handleGeneratorSubmit();

@@ -27,46 +27,44 @@ const CalorieAPI = {
      * @returns {Promise<Array>} Array of food items with nutrition data
      */
     async search(query) {
-        if (!this.isConfigured()) {
-            return [];
-        }
+        if (!this.isConfigured()) return [];
 
         // Check cache first
         const cacheKey = query.toLowerCase().trim();
         const cached = this.cache.get(cacheKey);
+        
         if (cached && Date.now() - cached.timestamp < this.CACHE_DURATION) {
             return cached.data;
         }
 
         try {
-            const response = await fetch(`${this.BASE_URL}?query=${encodeURIComponent(query)}`, {
-                method: 'GET',
-                headers: {
-                    'X-Api-Key': this.API_KEY
-                }
-            });
-
-            if (!response.ok) {
-                console.error('CalorieNinjas API error:', response.status);
-                return [];
-            }
-
-            const data = await response.json();
-
-            // Transform API response to our format
-            const results = this.transformResults(data.items || [], query);
-
-            // Cache results
+            const results = await this.fetchFromAPI(query);
             this.cache.set(cacheKey, {
                 data: results,
                 timestamp: Date.now()
             });
-
             return results;
         } catch (error) {
             console.error('CalorieNinjas API error:', error);
             return [];
         }
+    },
+
+    async fetchFromAPI(query) {
+        const response = await fetch(`${this.BASE_URL}?query=${encodeURIComponent(query)}`, {
+            method: 'GET',
+            headers: {
+                'X-Api-Key': this.API_KEY
+            }
+        });
+
+        if (!response.ok) {
+            console.error('CalorieNinjas API error:', response.status);
+            return [];
+        }
+
+        const data = await response.json();
+        return this.transformResults(data.items || [], query);
     },
 
     /**
@@ -201,58 +199,74 @@ const CalorieAPI = {
      */
     async searchIndonesianFoods(query) {
         try {
-            // Search OpenFoodFacts with Indonesia filter
-            const encodedQuery = encodeURIComponent(query);
-            const response = await fetch(
-                `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodedQuery}&countries_tags_en=indonesia&fields=code,product_name,brands,nutriments,serving_size&page_size=8&json=true`
-            );
+            const data = await this.fetchIndonesianProducts(query);
+            if (!data || !data.products) return [];
 
-            if (!response.ok) {
-                console.error('OpenFoodFacts search error:', response.status);
-                return [];
-            }
-
-            const data = await response.json();
-            const products = data.products || [];
-
-            return products
-                .filter(product => {
-                    // Filter only products with calorie data
-                    const nutriments = product.nutriments || {};
-                    return nutriments['energy-kcal_100g'] || 
-                           nutriments['energy-kcal'] || 
-                           nutriments['energy_100g'];
-                })
-                .map(product => {
-                    const nutriments = product.nutriments || {};
-                    
-                    // Extract calories
-                    let calories = 0;
-                    if (nutriments['energy-kcal_100g']) {
-                        calories = Math.round(nutriments['energy-kcal_100g']);
-                    } else if (nutriments['energy-kcal']) {
-                        calories = Math.round(nutriments['energy-kcal']);
-                    } else if (nutriments['energy_100g']) {
-                        calories = Math.round(nutriments['energy_100g'] / 4.184);
-                    }
-
-                    const servingSize = product.serving_size || 100;
-                    const portion = servingSize === 100 ? '100g' : `${servingSize}g`;
-
-                    return {
-                        name: product.product_name || `Produk ${product.code}`,
-                        calories: calories,
-                        portion: portion,
-                        brand: product.brands || '',
-                        barcode: product.code,
-                        source: 'api'
-                    };
-                })
-                .filter(food => food.calories > 0);
+            return this.processIndonesianProducts(data.products);
         } catch (error) {
             console.error('OpenFoodFacts search error:', error);
             return [];
         }
+    },
+
+    async fetchIndonesianProducts(query) {
+        const encodedQuery = encodeURIComponent(query);
+        const response = await fetch(
+            `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodedQuery}&countries_tags_en=indonesia&fields=code,product_name,brands,nutriments,serving_size&page_size=8&json=true`
+        );
+
+        if (!response.ok) {
+            console.error('OpenFoodFacts search error:', response.status);
+            return null;
+        }
+
+        return response.json();
+    },
+
+    processIndonesianProducts(products) {
+        return products
+            .filter(product => this.hasCalorieData(product))
+            .map(product => this.transformIndonesianProduct(product))
+            .filter(food => food.calories > 0);
+    },
+
+    hasCalorieData(product) {
+        const nutriments = product.nutriments || {};
+        return nutriments['energy-kcal_100g'] || 
+               nutriments['energy-kcal'] || 
+               nutriments['energy_100g'];
+    },
+
+    transformIndonesianProduct(product) {
+        const nutriments = product.nutriments || {};
+        const calories = this.extractCaloriesFromNutriments(nutriments);
+        const servingSize = product.serving_size || 100;
+        const portion = servingSize === 100 ? '100g' : `${servingSize}g`;
+
+        return {
+            name: product.product_name || `Produk ${product.code}`,
+            calories,
+            portion,
+            brand: product.brands || '',
+            barcode: product.code,
+            source: 'api'
+        };
+    },
+
+    extractCaloriesFromNutriments(nutriments) {
+        if (nutriments['energy-kcal_100g']) {
+            return Math.round(nutriments['energy-kcal_100g']);
+        }
+        
+        if (nutriments['energy-kcal']) {
+            return Math.round(nutriments['energy-kcal']);
+        }
+        
+        if (nutriments['energy_100g']) {
+            return Math.round(nutriments['energy_100g'] / 4.184);
+        }
+        
+        return 0;
     }
 };
 

@@ -374,58 +374,54 @@ const FoodsDB = {
      * @returns {Array} Matching food items
      */
     search(query, limit = 10) {
-        if (!query || query.length < 2) {
-            return [];
-        }
+        if (!query || query.length < 2) return [];
 
         const normalizedQuery = query.toLowerCase().trim();
-        
-        // Score-based search for better results
-        const scored = this.foods.map(food => {
-            const name = food.name.toLowerCase();
-            let score = 0;
+        const scored = this.foods.map(food => ({
+            ...food,
+            score: this.calculateSearchScore(food.name.toLowerCase(), normalizedQuery)
+        }));
 
-            // Exact match
-            if (name === normalizedQuery) {
-                score = 100;
-            }
-            // Starts with query
-            else if (name.startsWith(normalizedQuery)) {
-                score = 80;
-            }
-            // Contains query as word
-            else if (name.includes(` ${normalizedQuery}`) || name.includes(`${normalizedQuery} `)) {
-                score = 60;
-            }
-            // Contains query anywhere
-            else if (name.includes(normalizedQuery)) {
-                score = 40;
-            }
-            // Fuzzy match - check each word
-            else {
-                const queryWords = normalizedQuery.split(' ');
-                const nameWords = name.split(' ');
-                
-                queryWords.forEach(qWord => {
-                    nameWords.forEach(nWord => {
-                        if (nWord.startsWith(qWord)) {
-                            score += 20;
-                        } else if (nWord.includes(qWord)) {
-                            score += 10;
-                        }
-                    });
-                });
-            }
-
-            return { ...food, score };
-        });
-
-        // Filter and sort by score
         return scored
             .filter(item => item.score > 0)
             .sort((a, b) => b.score - a.score)
             .slice(0, limit)
             .map(({ score, ...food }) => food);
+    },
+
+    calculateSearchScore(name, query) {
+        // Exact match
+        if (name === query) return 100;
+        
+        // Starts with query
+        if (name.startsWith(query)) return 80;
+        
+        // Contains query as word
+        if (name.includes(` ${query}`) || name.includes(`${query} `)) return 60;
+        
+        // Contains query anywhere
+        if (name.includes(query)) return 40;
+        
+        // Fuzzy match - check each word
+        return this.calculateFuzzyScore(name, query);
+    },
+
+    calculateFuzzyScore(name, query) {
+        const queryWords = query.split(' ');
+        const nameWords = name.split(' ');
+        let score = 0;
+        
+        queryWords.forEach(qWord => {
+            nameWords.forEach(nWord => {
+                if (nWord.startsWith(qWord)) {
+                    score += 20;
+                } else if (nWord.includes(qWord)) {
+                    score += 10;
+                }
+            });
+        });
+        
+        return score;
     },
 
     /**
@@ -435,50 +431,14 @@ const FoodsDB = {
      * @returns {Array} Array of { food, score }
      */
     searchWithScore(query, limit = 10) {
-        if (!query || query.length < 2) {
-            return [];
-        }
+        if (!query || query.length < 2) return [];
 
         const normalizedQuery = query.toLowerCase().trim();
         
-        const scored = this.foods.map(food => {
-            const name = food.name.toLowerCase();
-            let score = 0;
-
-            // Exact match
-            if (name === normalizedQuery) {
-                score = 100;
-            }
-            // Starts with query
-            else if (name.startsWith(normalizedQuery)) {
-                score = 80;
-            }
-            // Contains query as word
-            else if (name.includes(` ${normalizedQuery}`) || name.includes(`${normalizedQuery} `)) {
-                score = 60;
-            }
-            // Contains query anywhere
-            else if (name.includes(normalizedQuery)) {
-                score = 40;
-            }
-            // Fuzzy match
-            else {
-                const queryWords = normalizedQuery.split(' ');
-                const nameWords = name.split(' ');
-                
-                queryWords.forEach(qWord => {
-                    nameWords.forEach(nWord => {
-                        if (nWord.startsWith(qWord)) {
-                            score += 20;
-                        } else if (nWord.includes(qWord)) {
-                            score += 10;
-                        }
-                    });
-                });
-            }
-
-            return { food: { ...food, source: 'local' }, score };
-        });
+        const scored = this.foods.map(food => ({
+            food: { ...food, source: 'local' },
+            score: this.calculateSearchScore(food.name.toLowerCase(), normalizedQuery)
+        }));
 
         return scored
             .filter(item => item.score > 0)
