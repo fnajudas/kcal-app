@@ -364,7 +364,158 @@ const FoodsDB = {
         { name: "Kwetiau Goreng", calories: 450, portion: "1 piring", price: 18000 },
         { name: "Kwetiau Siram", calories: 380, portion: "1 piring", price: 25000 },
         { name: "Bihun Goreng", calories: 380, portion: "1 piring", price: 15000 },
-        { name: "Bihun Kuah", calories: 320, portion: "1 mangkuk", price: 15000 }
+        { name: "Bihun Kuah", calories: 320, portion: "1 mangkuk", price: 15000 },
+
+        // --- AIR MINUM, ISOTONIK, & MINUMAN KESEHATAN ---
+        { name: "Ades", calories: 0, portion: "600ml", price: 3000 },
+        { name: "Cleo", calories: 0, portion: "600ml", price: 3000 },
+        { name: "Nestle Pure Life", calories: 0, portion: "600ml", price: 4000 },
+        { name: "Equil", calories: 0, portion: "380ml", price: 12000 },
+        { name: "Pocari Sweat", calories: 100, portion: "500ml", price: 9000 },
+        { name: "Mizone", calories: 110, portion: "500ml", price: 7000 },
+        { name: "100PLUS", calories: 110, portion: "500ml", price: 9000 },
+        { name: "Hydro Coco", calories: 60, portion: "250ml", price: 10000 },
+        { name: "YouC1000", calories: 120, portion: "140ml", price: 9000 },
+        { name: "Hemaviton C1000", calories: 70, portion: "140ml", price: 9000 },
+        { name: "Larutan Cap Badak", calories: 120, portion: "320ml", price: 9000 },
+        { name: "Oralit", calories: 50, portion: "1 sachet (200ml)", price: 2000 },
+
+        // --- TEH SIAP MINUM ---
+        { name: "Teh Pucuk Harum", calories: 140, portion: "350ml", price: 5000 },
+        { name: "Frestea", calories: 140, portion: "350ml", price: 6000 },
+        { name: "Nu Green Tea", calories: 130, portion: "450ml", price: 6000 },
+        { name: "Ichi Ocha", calories: 0, portion: "350ml", price: 6000 },
+        { name: "S-tee", calories: 150, portion: "350ml", price: 5000 },
+        { name: "Teh Gelas", calories: 90, portion: "200ml", price: 2000 },
+        { name: "Teh Javana", calories: 140, portion: "350ml", price: 5000 },
+
+        // --- KOPI SIAP MINUM & SUSU KOPI BOTOL ---
+        { name: "Nescafe Latte (RTD)", calories: 160, portion: "220ml", price: 9000 },
+        { name: "Kopi Good Day (RTD)", calories: 180, portion: "250ml", price: 9000 },
+        { name: "Kopi Kapal Api (RTD)", calories: 160, portion: "240ml", price: 8000 },
+        { name: "Kopi ABC Susu (RTD)", calories: 180, portion: "250ml", price: 8000 },
+
+        // --- SUSU, YOGURT, & MINUMAN DAIRY ---
+        { name: "Bear Brand", calories: 160, portion: "189ml", price: 12000 },
+        { name: "Greenfields UHT", calories: 150, portion: "250ml", price: 11000 },
+        { name: "Frisian Flag UHT", calories: 140, portion: "225ml", price: 7000 },
+        { name: "Dancow UHT", calories: 160, portion: "200ml", price: 8000 },
+        { name: "Susu Bendera Kental Manis", calories: 130, portion: "2 sdm (40g)", price: 3000 },
+        { name: "Cimory Yogurt Drink", calories: 180, portion: "250ml", price: 12000 },
+        { name: "Yakult", calories: 50, portion: "65ml", price: 3000 },
+        { name: "Susu Jahe (botol)", calories: 180, portion: "250ml", price: 12000 },
+
+        // --- JUS & MINUMAN SARI BUAH ---
+        { name: "Buavita", calories: 130, portion: "250ml", price: 8000 },
+        { name: "Floridina", calories: 150, portion: "360ml", price: 6000 },
+        { name: "Minute Maid Pulpy Orange", calories: 160, portion: "300ml", price: 9000 },
+        { name: "Nutrisari (serbuk)", calories: 90, portion: "1 sachet (200ml)", price: 1500 },
+        { name: "Marimas (serbuk)", calories: 80, portion: "1 sachet (200ml)", price: 1000 },
+        { name: "Jasjus (serbuk)", calories: 70, portion: "1 sachet (200ml)", price: 1000 },
+
+        // --- MINUMAN SERBUK & SACHET POPULER ---
+        { name: "Torabika Cappuccino", calories: 130, portion: "1 sachet", price: 2000 },
+        { name: "Kapal Api Special Mix", calories: 120, portion: "1 sachet", price: 1500 },
+        { name: "ABC Kopi Susu", calories: 120, portion: "1 sachet", price: 1500 },
+        { name: "Luwak White Koffie", calories: 140, portion: "1 sachet", price: 2000 },
+        { name: "Indocafe Coffeemix", calories: 120, portion: "1 sachet", price: 1500 },
+        { name: "TOP Coffee", calories: 120, portion: "1 sachet", price: 1500 },
+        { name: "Susu Dancow (bubuk)", calories: 150, portion: "3 sdm (30g)", price: 3000 },
+        { name: "Milo Kotak", calories: 170, portion: "180ml", price: 8000 },
+        { name: "Milo (sachet)", calories: 130, portion: "1 sachet", price: 2000 },
+        { name: "Kratingdaeng", calories: 120, portion: "150ml", price: 8000 },
+        { name: "Extra Joss", calories: 15, portion: "1 sachet", price: 2000 },
+
+        // --- SNACK RINGAN (CHIPS, STICK, KACANG) ---
+        { name: "Chiki Balls", calories: 160, portion: "1 bungkus kecil (35g)", price: 5000 },
+        { name: "Chiki Twist", calories: 160, portion: "1 bungkus kecil (35g)", price: 5000 },
+        { name: "Chitato Lite", calories: 140, portion: "1 bungkus kecil", price: 6000 },
+        { name: "Kusuka Keripik Singkong", calories: 170, portion: "1 bungkus kecil (45g)", price: 5000 },
+        { name: "Maicih (keripik pedas)", calories: 180, portion: "1 bungkus kecil (40g)", price: 10000 },
+        { name: "Garuda Kacang Atom", calories: 170, portion: "1 bungkus kecil (35g)", price: 5000 },
+        { name: "Garuda Kacang Kulit", calories: 190, portion: "1 bungkus kecil (40g)", price: 6000 },
+        { name: "Dua Kelinci Kacang Sukro", calories: 170, portion: "1 bungkus kecil (35g)", price: 5000 },
+        { name: "Dua Kelinci Kacang Polong", calories: 160, portion: "1 bungkus kecil (35g)", price: 5000 },
+        { name: "Pilus Garuda", calories: 160, portion: "1 bungkus kecil (35g)", price: 3000 },
+        { name: "Makaroni Pedas", calories: 180, portion: "1 bungkus (50g)", price: 10000 },
+
+        // --- BISKUIT, WAFER, & ROTI KERING ---
+        { name: "Biskuit Regal Marie", calories: 140, portion: "4 keping", price: 6000 },
+        { name: "Biskuit Marie Susu", calories: 130, portion: "4 keping", price: 5000 },
+        { name: "Biskuit Roma Kelapa", calories: 150, portion: "4 keping", price: 6000 },
+        { name: "Biskuit Malkist Roma", calories: 160, portion: "4 keping", price: 6000 },
+        { name: "Khong Guan (biskuit)", calories: 160, portion: "4 keping", price: 8000 },
+        { name: "Good Time Cookies", calories: 160, portion: "3 keping", price: 8000 },
+        { name: "Nabati Wafer Richeese", calories: 160, portion: "1 bungkus (50g)", price: 3000 },
+        { name: "Tango Wafer (batang)", calories: 130, portion: "1 batang", price: 2000 },
+        { name: "Beng Beng (batang)", calories: 130, portion: "1 batang", price: 2000 },
+        { name: "Better Wafer (batang)", calories: 120, portion: "1 batang", price: 2000 },
+        { name: "Roma Sandwich", calories: 170, portion: "3 keping", price: 7000 },
+
+        // --- COKELAT, PERMEN, & MANISAN ---
+        { name: "Choki Choki", calories: 80, portion: "1 batang kecil", price: 2000 },
+        { name: "SilverQueen (batang kecil)", calories: 220, portion: "1 batang (33g)", price: 12000 },
+        { name: "Delfi Take It", calories: 140, portion: "1 batang", price: 3000 },
+        { name: "Toblerone mini", calories: 170, portion: "1 pcs (35g)", price: 15000 },
+        { name: "Relaxa", calories: 25, portion: "1 buah", price: 500 },
+        { name: "Kis Mint", calories: 20, portion: "1 buah", price: 500 },
+        { name: "Milkita", calories: 25, portion: "1 buah", price: 500 },
+
+        // --- ROTI & KUE KEMASAN ---
+        { name: "Sari Roti Tawar", calories: 90, portion: "1 lembar", price: 2500 },
+        { name: "Sari Roti Roti Sobek", calories: 220, portion: "1 porsi (60g)", price: 8000 },
+        { name: "Roti Aoka", calories: 230, portion: "1 buah", price: 3000 },
+        { name: "Roti Serba Roti", calories: 240, portion: "1 buah", price: 4000 },
+        { name: "Bolu Kukus Mekar", calories: 210, portion: "1 pcs", price: 3000 },
+
+        // --- MIE INSTAN & MAKANAN INSTAN LAIN ---
+        { name: "Indomie Soto", calories: 350, portion: "1 bungkus", price: 5000 },
+        { name: "Indomie Kari Ayam", calories: 360, portion: "1 bungkus", price: 5000 },
+        { name: "Indomie Rendang", calories: 390, portion: "1 bungkus", price: 5500 },
+        { name: "Indomie Aceh", calories: 420, portion: "1 bungkus", price: 6000 },
+        { name: "Mie Sedaap Korean Spicy", calories: 430, portion: "1 bungkus", price: 6500 },
+        { name: "Pop Mie Cup", calories: 350, portion: "1 cup", price: 7000 },
+        { name: "Sarimi Isi 2", calories: 520, portion: "1 bungkus", price: 7000 },
+        { name: "Bihunku Instan", calories: 300, portion: "1 bungkus", price: 6000 },
+        { name: "Bubur Instan (chicken)", calories: 170, portion: "1 sachet", price: 4000 },
+
+        // --- BUMBU, SAUS, & CONDIMENT (per takaran saji) ---
+        { name: "Kecap Manis Bango", calories: 60, portion: "1 sdm (15g)", price: 1000 },
+        { name: "Kecap Manis ABC", calories: 55, portion: "1 sdm (15g)", price: 800 },
+        { name: "Saus Sambal ABC", calories: 15, portion: "1 sdm (15g)", price: 800 },
+        { name: "Saus Tomat ABC", calories: 20, portion: "1 sdm (15g)", price: 800 },
+        { name: "Sambal Jawara", calories: 25, portion: "1 sdm (15g)", price: 1000 },
+        { name: "Sambal Indofood", calories: 25, portion: "1 sdm (15g)", price: 800 },
+        { name: "Mayonnaise Maestro", calories: 90, portion: "1 sdm (15g)", price: 1500 },
+        { name: "Royco Kaldu", calories: 10, portion: "1 sdt (5g)", price: 500 },
+        { name: "Masako Kaldu", calories: 10, portion: "1 sdt (5g)", price: 500 },
+        { name: "Sasa MSG", calories: 0, portion: "1 sdt (5g)", price: 500 },
+        { name: "Ajinomoto MSG", calories: 0, portion: "1 sdt (5g)", price: 500 },
+        { name: "Bumbu Racik (instan)", calories: 15, portion: "1 sachet", price: 2000 },
+
+        // --- MINYAK, MARGARIN (per takaran) ---
+        { name: "Minyak Goreng Bimoli", calories: 120, portion: "1 sdm (14g)", price: 2000 },
+        { name: "Minyak Goreng Filma", calories: 120, portion: "1 sdm (14g)", price: 2000 },
+        { name: "Blue Band", calories: 100, portion: "1 sdm (14g)", price: 1500 },
+
+        // --- PRODUK KALENG / SIAP SAJI ---
+        { name: "Sarden ABC", calories: 200, portion: "1/2 kaleng (90g)", price: 12000 },
+        { name: "Sarden Botan", calories: 200, portion: "1/2 kaleng (90g)", price: 14000 },
+        { name: "Kornet Sapi (kecil)", calories: 250, portion: "1/2 kaleng (100g)", price: 18000 },
+        { name: "Tuna Kaleng", calories: 160, portion: "1/2 kaleng (80g)", price: 18000 },
+        { name: "Sosis Kanzler (mini)", calories: 180, portion: "2 pcs", price: 12000 },
+        { name: "Sosis So Nice", calories: 170, portion: "2 pcs", price: 8000 },
+        { name: "Bakso Kemasan", calories: 220, portion: "6 pcs", price: 12000 },
+        { name: "Nugget So Good", calories: 250, portion: "6 pcs", price: 15000 },
+
+        // --- PRODUK SUSU KENTAL / KRIMER / TOPPING ---
+        { name: "Krimer Kental Manis", calories: 130, portion: "2 sdm (40g)", price: 3000 },
+        { name: "Krimer Bubuk (non dairy)", calories: 60, portion: "1 sdm (10g)", price: 500 },
+
+        // --- ES KRIM POPULER (per porsi) ---
+        { name: "Es Krim Cornetto", calories: 260, portion: "1 pcs", price: 12000 },
+        { name: "Es Krim Magnum", calories: 280, portion: "1 pcs", price: 18000 },
+        { name: "Es Krim Walls Cup", calories: 180, portion: "1 cup kecil", price: 8000 }
     ],
 
     /**
@@ -392,16 +543,16 @@ const FoodsDB = {
     calculateSearchScore(name, query) {
         // Exact match
         if (name === query) return 100;
-        
+
         // Starts with query
         if (name.startsWith(query)) return 80;
-        
+
         // Contains query as word
         if (name.includes(` ${query}`) || name.includes(`${query} `)) return 60;
-        
+
         // Contains query anywhere
         if (name.includes(query)) return 40;
-        
+
         // Fuzzy match - check each word
         return this.calculateFuzzyScore(name, query);
     },
@@ -410,7 +561,7 @@ const FoodsDB = {
         const queryWords = query.split(' ');
         const nameWords = name.split(' ');
         let score = 0;
-        
+
         queryWords.forEach(qWord => {
             nameWords.forEach(nWord => {
                 if (nWord.startsWith(qWord)) {
@@ -420,7 +571,7 @@ const FoodsDB = {
                 }
             });
         });
-        
+
         return score;
     },
 
@@ -434,7 +585,7 @@ const FoodsDB = {
         if (!query || query.length < 2) return [];
 
         const normalizedQuery = query.toLowerCase().trim();
-        
+
         const scored = this.foods.map(food => ({
             food: { ...food, source: 'local' },
             score: this.calculateSearchScore(food.name.toLowerCase(), normalizedQuery)
