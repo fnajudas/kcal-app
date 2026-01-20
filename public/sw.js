@@ -6,18 +6,18 @@
 // =====================================================
 // PENTING: Naikkan versi ini setiap kali ada update!
 // =====================================================
-const APP_VERSION = '1.4.1'; // Fix: Storage and auto theme issues
+const APP_VERSION = '1.4.4'; // Auto theme always on, manual toggle temporary
 const CACHE_NAME = `kcal-calculator-v${APP_VERSION}`;
 
 const STATIC_ASSETS = [
     '/',
     '/index.html',
     '/css/style.css',
-    '/js/app.js',
-    '/js/calculator.js',
-    '/js/calorie-api.js',
-    '/js/foods-db.js',
-    '/js/storage.js',
+    '/js/app.js?v=' + APP_VERSION,
+    '/js/calculator.js?v=' + APP_VERSION,
+    '/js/calorie-api.js?v=' + APP_VERSION,
+    '/js/foods-db.js?v=' + APP_VERSION,
+    '/js/storage.js?v=' + APP_VERSION,
     '/manifest.json',
     '/icons/icon.svg',
     '/icons/icon-192x192.png',

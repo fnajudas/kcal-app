@@ -14,6 +14,7 @@ const App = {
         goal: null,
         targetCalories: 0,
         foods: [],
+        lastThemePeriod: null, // 'day' or 'night' - for auto theme switching
         autocomplete: {
             selectedIndex: -1,
             suggestions: [],
@@ -295,9 +296,8 @@ const App = {
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
                 // Check and apply auto theme when tab becomes visible
-                if (Storage.isThemeAuto()) {
-                    this.applyAutoTheme();
-                }
+                // This handles case when user was away during 6 AM or 6 PM transition
+                this.applyAutoTheme(false);
 
                 // Check daily reset
                 const wasReset = Storage.checkAndResetDaily();
@@ -513,7 +513,7 @@ const App = {
             .map((food, index) => this.createAutocompleteItemHTML(food, query, index))
             .join('');
 
-        this.bindAutocompleteEvents(suggestions, query);
+        this.bindSuggestionItemEvents(suggestions, query);
         suggestions.classList.add('active');
         this.state.autocomplete.isOpen = true;
         hint.textContent = `${results.length} ditemukan`;
@@ -543,7 +543,7 @@ const App = {
         `;
     },
 
-    bindAutocompleteEvents(suggestions, query) {
+    bindSuggestionItemEvents(suggestions, query) {
         // Bind click events for selecting items
         suggestions.querySelectorAll('.autocomplete-item').forEach(item => {
             item.addEventListener('click', (e) => {
@@ -1443,34 +1443,44 @@ const App = {
      * Initialize theme on app load
      */
     initTheme() {
-        const isAuto = Storage.isThemeAuto();
+        // Apply theme based on current time on first load
+        this.applyAutoTheme(true);
 
-        if (isAuto) {
-            this.applyAutoTheme();
-            // Check every minute for precise time-based switching
-            // This ensures theme changes exactly at 6 AM and 6 PM
-            setInterval(() => this.applyAutoTheme(), 60 * 1000);
-        } else {
-            const savedTheme = Storage.getThemeMode();
-            this.applyTheme(savedTheme);
-        }
+        // Check every minute for theme transition (6 AM or 6 PM)
+        setInterval(() => this.applyAutoTheme(false), 60 * 1000);
     },
 
     /**
-     * Apply theme based on time (auto mode)
+     * Apply theme based on time
      * Dark mode: 18:00 - 06:00 (6 PM - 6 AM) WIB
      * Light mode: 06:00 - 18:00 (6 AM - 6 PM) WIB
+     * 
+     * @param {boolean} forceApply - If true, always apply theme (used on first load)
      */
-    applyAutoTheme() {
+    applyAutoTheme(forceApply = false) {
         const hour = this.getCurrentHourInIndonesia();
-        const theme = this.getThemeByHour(hour);
-        const currentTheme = document.documentElement.getAttribute('data-theme');
+        const currentPeriod = (hour >= 6 && hour < 18) ? 'day' : 'night';
+        const theme = currentPeriod === 'day' ? 'light' : 'dark';
 
-        if (currentTheme === theme) return;
+        // Check if period changed (crossing 6 AM or 6 PM boundary)
+        const periodChanged = this.state.lastThemePeriod !== null &&
+            this.state.lastThemePeriod !== currentPeriod;
 
-        // Save theme to localStorage even in auto mode for consistency
-        Storage.setThemeMode(theme);
-        this.applyTheme(theme);
+        // Apply theme on first load OR when crossing time boundary
+        if (forceApply || periodChanged) {
+            this.state.lastThemePeriod = currentPeriod;
+            Storage.setThemeMode(theme);
+            this.applyTheme(theme);
+
+            // Show notification when auto-switching (not on first load)
+            if (periodChanged) {
+                const timeLabel = currentPeriod === 'day' ? 'pagi' : 'malam';
+                this.showToast(`Selamat ${timeLabel}! Mode ${theme === 'dark' ? 'gelap' : 'terang'} aktif`, 'info');
+            }
+        }
+
+        // Always update lastThemePeriod to track current period
+        this.state.lastThemePeriod = currentPeriod;
     },
 
     getCurrentHourInIndonesia() {
@@ -1482,12 +1492,6 @@ const App = {
         };
         const timeString = now.toLocaleTimeString('en-US', options);
         return parseInt(timeString.split(':')[0]);
-    },
-
-    getThemeByHour(hour) {
-        // Dark mode: 18:00 (6 PM) to 06:00 (6 AM)
-        // Light mode: 06:00 (6 AM) to 18:00 (6 PM)
-        return (hour >= 18 || hour < 6) ? 'dark' : 'light';
     },
 
     /**
@@ -1515,18 +1519,21 @@ const App = {
 
     /**
      * Toggle theme manually
+     * Note: Auto theme will still switch at 6 AM and 6 PM
      */
     toggleTheme() {
         const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
         const newTheme = currentTheme === 'light' ? 'dark' : 'light';
 
-        // Disable auto mode when manually toggling
-        Storage.setThemeAuto(false);
         Storage.setThemeMode(newTheme);
         this.applyTheme(newTheme);
 
+        // Get next auto switch time
+        const hour = this.getCurrentHourInIndonesia();
+        const nextSwitch = hour >= 6 && hour < 18 ? '18:00' : '06:00';
+
         this.showToast(
-            `Mode ${newTheme === 'dark' ? 'gelap' : 'terang'} aktif (manual)`,
+            `Mode ${newTheme === 'dark' ? 'gelap' : 'terang'} (otomatis berubah jam ${nextSwitch})`,
             'info'
         );
     },
