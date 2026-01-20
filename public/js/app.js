@@ -291,9 +291,15 @@ const App = {
         // Settings
         this.bindSettingsEvents();
 
-        // Visibility change - check daily reset when user returns to tab
+        // Visibility change - check daily reset and theme when user returns to tab
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
+                // Check and apply auto theme when tab becomes visible
+                if (Storage.isThemeAuto()) {
+                    this.applyAutoTheme();
+                }
+
+                // Check daily reset
                 const wasReset = Storage.checkAndResetDaily();
                 if (wasReset) {
                     this.loadFoods();
@@ -1462,6 +1468,8 @@ const App = {
 
         if (currentTheme === theme) return;
 
+        // Save theme to localStorage even in auto mode for consistency
+        Storage.setThemeMode(theme);
         this.applyTheme(theme);
     },
 

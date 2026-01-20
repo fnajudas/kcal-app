@@ -6,7 +6,7 @@
 // =====================================================
 // PENTING: Naikkan versi ini setiap kali ada update!
 // =====================================================
-const APP_VERSION = '1.4.0'; // Refactor: Applied guard clauses and clean code principles throughout codebase
+const APP_VERSION = '1.4.1'; // Fix: Storage and auto theme issues
 const CACHE_NAME = `kcal-calculator-v${APP_VERSION}`;
 
 const STATIC_ASSETS = [
@@ -111,38 +111,62 @@ self.addEventListener('fetch', (event) => {
                 })
         );
     } else {
-        // Cache First strategy for assets (CSS, JS, images)
-        event.respondWith(
-            caches.match(event.request)
-                .then((cachedResponse) => {
-                    if (cachedResponse) {
-                        // Return cached version, but also fetch fresh in background
-                        fetch(event.request).then((response) => {
-                            if (response && response.status === 200) {
-                                caches.open(CACHE_NAME).then((cache) => {
-                                    cache.put(event.request, response);
-                                });
-                            }
-                        }).catch(() => { });
-                        return cachedResponse;
-                    }
+        // Network First strategy for JS files to ensure fresh code
+        // Cache First for CSS and images
+        const isJSFile = event.request.url.endsWith('.js');
 
-                    // Fetch from network
-                    return fetch(event.request)
-                        .then((response) => {
-                            if (!response || response.status !== 200) {
-                                return response;
-                            }
-
+        if (isJSFile) {
+            // Network First for JavaScript files to prevent stale code
+            event.respondWith(
+                fetch(event.request)
+                    .then((response) => {
+                        if (response && response.status === 200) {
                             const responseToCache = response.clone();
                             caches.open(CACHE_NAME).then((cache) => {
                                 cache.put(event.request, responseToCache);
                             });
+                        }
+                        return response;
+                    })
+                    .catch(() => {
+                        // Fallback to cache if network fails
+                        return caches.match(event.request);
+                    })
+            );
+        } else {
+            // Cache First strategy for CSS, images, and other assets
+            event.respondWith(
+                caches.match(event.request)
+                    .then((cachedResponse) => {
+                        if (cachedResponse) {
+                            // Return cached version, but also fetch fresh in background
+                            fetch(event.request).then((response) => {
+                                if (response && response.status === 200) {
+                                    caches.open(CACHE_NAME).then((cache) => {
+                                        cache.put(event.request, response);
+                                    });
+                                }
+                            }).catch(() => { });
+                            return cachedResponse;
+                        }
 
-                            return response;
-                        });
-                })
-        );
+                        // Fetch from network
+                        return fetch(event.request)
+                            .then((response) => {
+                                if (!response || response.status !== 200) {
+                                    return response;
+                                }
+
+                                const responseToCache = response.clone();
+                                caches.open(CACHE_NAME).then((cache) => {
+                                    cache.put(event.request, responseToCache);
+                                });
+
+                                return response;
+                            });
+                    })
+            );
+        }
     }
 });
 
