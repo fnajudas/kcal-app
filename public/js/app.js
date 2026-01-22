@@ -394,7 +394,8 @@ const App = {
     },
 
     async handleAutocompleteSearch(query) {
-        const { suggestions, hint } = this.elements;
+        const suggestions = this.elements.foodSuggestions;
+        const hint = this.elements.foodHint;
 
         if (query.length < 2) {
             this.closeAutocomplete();

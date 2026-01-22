@@ -6,7 +6,7 @@
 // =====================================================
 // PENTING: Naikkan versi ini setiap kali ada update!
 // =====================================================
-const APP_VERSION = '1.4.4'; // Auto theme always on, manual toggle temporary
+const APP_VERSION = '1.4.6'; // Fix: autocomplete suggestions + JS cache detection
 const CACHE_NAME = `kcal-calculator-v${APP_VERSION}`;
 
 const STATIC_ASSETS = [
@@ -113,7 +113,8 @@ self.addEventListener('fetch', (event) => {
     } else {
         // Network First strategy for JS files to ensure fresh code
         // Cache First for CSS and images
-        const isJSFile = event.request.url.endsWith('.js');
+        const url = new URL(event.request.url);
+        const isJSFile = url.pathname.endsWith('.js');
 
         if (isJSFile) {
             // Network First for JavaScript files to prevent stale code
